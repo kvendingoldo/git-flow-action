@@ -40,17 +40,17 @@ inputs:
     required: false
     default: ""
   log_level:
-    description: "Semver log level"
+    description: "Logging level"
     required: false
     default: "INFO"
 
 outputs:
   version:
-    description: "Version tag"
+    description: "Generated version"
   safe_version:
-    description: "Version tag without specific symbols"
+    description: "Generated version without any specific symbols"
 
 runs:
   using: "docker"
-  #image: 'Dockerfile'
-  image: "docker://kvendingoldo/git-flow-action:v1.21.0-alpha3"
+  image: 'Dockerfile'
+  #image: "docker://kvendingoldo/git-flow-action:v0.0.1-alpha1"

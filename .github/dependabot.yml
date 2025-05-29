@@ -4,20 +4,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    labels:
-      - "pip-update"
-      - "bot"
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
-    labels:
-      - "docker-update"
-      - "bot"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    labels:
-      - "actions-update"
-      - "bot"

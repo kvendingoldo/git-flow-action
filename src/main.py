@@ -56,8 +56,8 @@ def get_config():
         "init_version": os.getenv("INPUT_INIT_VERSION"),
         "primary_branch": os.getenv("INPUT_PRIMARY_BRANCH"),
         "tag_prefix": {
-            "candidate": os.getenv("INPUT_TAG_PREFIX_CANDIDATE"),
-            "release": os.getenv("INPUT_TAG_PREFIX_RELEASE")
+            "candidate": os.getenv("INPUT_TAG_PREFIX_CANDIDATE", ""),
+            "release": os.getenv("INPUT_TAG_PREFIX_RELEASE", "")
         },
         "github": {
             "repository": os.getenv("GITHUB_REPOSITORY"),

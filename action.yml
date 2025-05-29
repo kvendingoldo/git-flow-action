@@ -1,0 +1,56 @@
+name: "git-flow workflow"
+description: "Updates version tags, creates release branches and GitHub releases"
+author: "kvendingoldo"
+
+branding:
+  icon: "play-circle"
+  color: "green"
+
+inputs:
+  primary_branch:
+    description: "Main branch: master/main"
+    required: false
+    default: "main"
+  init_version:
+    description: "Initial project version"
+    required: false
+    default: "0.0.0"
+  enable_custom_branches:
+    description: "If true, script will produce sha/x.y.z version for custom branches"
+    required: false
+    default: "true"
+  enable_github_releases:
+    description: "If true, GitHub releases will be created as well as Git branches. Requires github_token"
+    required: false
+    default: "false"
+  auto_release_for_branches:
+    description: "If true, GitHub releases will be created automatically for a list of branches"
+    required: false
+    default: "false"
+  github_token:
+    description: "GitHub token that requires for operate under GitHub. You can use secrets GITHUB_TOKEN, check example"
+    required: false
+    default: ""
+  release_tag_prefix:
+    description: "Prefix for Git release tags"
+    required: false
+    default: ""
+  tag_prefix:
+    description: "Prefix for Git tags"
+    required: false
+    default: ""
+  log_level:
+    description: "Semver log level"
+    required: false
+    default: "INFO"
+
+outputs:
+  version:
+    description: "Version tag"
+  safe_version:
+    description: "Version tag without specific symbols"
+
+runs:
+  using: "docker"
+  #image: 'Dockerfile'
+  image: "docker://kvendingoldo/git-flow-action:v1.21.0-alpha3"

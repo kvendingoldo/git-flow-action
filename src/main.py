@@ -61,6 +61,10 @@ def get_config():
             "candidate": os.getenv("INPUT_TAG_PREFIX_CANDIDATE", ""),
             "release": os.getenv("INPUT_TAG_PREFIX_RELEASE", "")
         },
+        "git": {
+            "name": "git-flow-action",
+            "email": "git-flow-action@example.com"
+        },
         "github": {
             "repository": os.getenv("GITHUB_REPOSITORY"),
             "url": os.getenv("INPUT_GITHUB_API_URL", "https://api.github.com"),
@@ -195,6 +199,12 @@ def main():
 
     repo_path = os.getcwd()
     repo = real_git.Repo(repo_path)
+
+    #
+    # Configure Git
+    #
+    repo.git.config('--global', 'user.email', config["git"]["email"])
+    repo.git.config('--global', 'user.name', config["git"]["name"])
 
     # NOTE: it's available only for git v2.35.2+
     # DETAILS:

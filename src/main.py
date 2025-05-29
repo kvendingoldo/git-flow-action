@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import copy
 import re
 import os
 import sys
@@ -80,7 +81,7 @@ def get_config():
     #
     # This object exist only for debug logs
     #
-    debug_config = config
+    debug_config = copy.deepcopy(config)
     debug_config["github"]["token"] = "xxx-masked-xxx"
 
     logging.debug("Config has successfully built")
@@ -109,6 +110,7 @@ def create_github_release(config, tag):
     headers = {
         "Authorization": f"Bearer {config['github']['token']}"
     }
+    print(headers)
     res = requests.post(
         url, json=release_data, headers=headers, timeout=60
     )

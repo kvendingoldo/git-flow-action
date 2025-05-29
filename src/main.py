@@ -276,14 +276,6 @@ def main():
             # Switch back, and bump version in primary branch
             repo.git.checkout(active_branch)
 
-            new_semver_version_after_release = new_semver_version.bump_minor()
-            if active_branch in config["auto_release_branches"]:
-                new_tag = f"{config['tag_prefix']['release']}{str(new_semver_version_after_release)}"
-            else:
-                new_tag = f"{config['tag_prefix']['candidate']}{str(new_semver_version_after_release)}"
-
-            logging.info(f"New tag for primary branch: {new_tag}")
-
             repo.git.commit('--allow-empty', '-m',
                             f"[git-flow-action] Bump upstream version tag up to {new_tag}")
             origin = repo.remote(name='origin')
@@ -292,6 +284,14 @@ def main():
                 logging.info("Git branch has been pushed")
             else:
                 logging.warning("Git branch push has been skipped due to config flag")
+
+            new_semver_version_after_release = new_semver_version.bump_minor()
+            if active_branch in config["auto_release_branches"]:
+                new_tag = f"{config['tag_prefix']['release']}{str(new_semver_version_after_release)}"
+            else:
+                new_tag = f"{config['tag_prefix']['candidate']}{str(new_semver_version_after_release)}"
+
+            logging.info(f"New tag for primary branch: {new_tag}")
 
             #
             # Push the tag

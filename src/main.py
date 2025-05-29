@@ -118,7 +118,6 @@ def create_github_release(config, tag):
     headers = {
         "Authorization": f"Bearer {config['github']['token']}"
     }
-    print(headers)
     res = requests.post(
         url, json=release_data, headers=headers, timeout=60
     )

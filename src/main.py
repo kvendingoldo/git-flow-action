@@ -198,7 +198,7 @@ def update_changelog(config, new_tag):
         changelog_file.touch()
         original = ""
 
-    changelog_file.write_text(changelog_notes + original)
+    changelog_file.write_text(changelog_notes + "\n" + original)
 
 
 def main():

@@ -12,6 +12,7 @@ import semver
 import git as real_git
 
 from git import GitCommandError
+from pathlib import Path
 
 
 def git(*args):
@@ -24,7 +25,7 @@ def git_create_and_push_tag(config, repo, tag, sha="HEAD"):
     repo.git.tag(tag, sha)
 
     if config["features"]["enable_git_push"] == "true":
-        repo.git.push('--tags', 'origin', 'refs/tags/{tag}'.format(tag=tag))
+        repo.git.push('--tags', 'origin', f"refs/tags/{tag}")
         logging.info("Git tag push has been pushed")
     else:
         logging.warning("Git tag push has been skipped due to config flag")
@@ -79,6 +80,9 @@ def get_config():
         "keywords": {
             "patch_bump": ['[hotfix]', '[fix]', 'hotfix:', 'fix:'],
             "major_bump": ['[BUMP-MAJOR]', 'bump-major', 'feat!']
+        },
+        "paths": {
+            "changelog": "CHANGELOG.md"
         }
     }
 
@@ -183,6 +187,20 @@ def create_release_branch(config, repo, new_version):
         logging.info(f"Failed to create release branch {branch_name}. Error: {ex}")
 
 
+def update_changelog(config, new_tag):
+    changelog_file = Path(config["paths"]["changelog"])
+
+    changelog_notes = f"""## {new_tag}"""
+
+    if changelog_file.exists():
+        original = changelog_file.read_text()
+    else:
+        changelog_file.touch()
+        original = ""
+
+    changelog_file.write_text(changelog_notes + original)
+
+
 def main():
     logging.basicConfig(
         level=logging.DEBUG,
@@ -273,14 +291,31 @@ def main():
             #
             # Create GitHub release
             if config["features"]["enable_github_release"] == "true":
-                create_github_release(config, new_tag)
+                if config["features"]["enable_git_push"] == "true":
+                    create_github_release(config, new_tag)
+                else:
+                    logging.warning("GitHub release can't be created, because tags hasn't been pushed")
 
             #
             # Switch back, and bump version in primary branch
             repo.git.checkout(active_branch)
 
+            #
+            # Calculate new tag
+            new_semver_version_after_release = new_semver_version.bump_minor()
+            if active_branch in config["auto_release_branches"]:
+                new_tag = f"{config['tag_prefix']['release']}{str(new_semver_version_after_release)}"
+            else:
+                new_tag = f"{config['tag_prefix']['candidate']}{str(new_semver_version_after_release)}"
+            logging.info(f"New tag for primary branch: {new_tag}")
+
+            #
+            # Update changelog
+            update_changelog(config, new_tag)
+            repo.git.add(A=True)
             repo.git.commit('--allow-empty', '-m',
                             f"[git-flow-action] Bump upstream version tag up to {new_tag}")
+
             commit_sha = repo.head.commit.hexsha
             origin = repo.remote(name='origin')
             if config["features"]["enable_git_push"] == "true":
@@ -288,14 +323,6 @@ def main():
                 logging.info("Git branch has been pushed")
             else:
                 logging.warning("Git branch push has been skipped due to config flag")
-
-            new_semver_version_after_release = new_semver_version.bump_minor()
-            if active_branch in config["auto_release_branches"]:
-                new_tag = f"{config['tag_prefix']['release']}{str(new_semver_version_after_release)}"
-            else:
-                new_tag = f"{config['tag_prefix']['candidate']}{str(new_semver_version_after_release)}"
-
-            logging.info(f"New tag for primary branch: {new_tag}")
 
             #
             # Push the tag (for primary branch)
@@ -337,7 +364,11 @@ def main():
         #
         # Create GitHub release
         if config["features"]["enable_github_release"] == "true":
-            create_github_release(config, new_tag)
+            if config["features"]["enable_git_push"] == "true":
+                create_github_release(config, new_tag)
+            else:
+                logging.warning("GitHub release can't be created, because tags hasn't been pushed")
+
 
         #
         # Output

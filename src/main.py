@@ -53,11 +53,11 @@ def get_config():
     log_level = os.environ.get("INPUT_LOG_LEVEL", "INFO")
 
     config = {
-        "init_version": os.getenv("INPUT_INIT_VERSION", "0.0.0"),
-        "primary_branch": os.getenv("INPUT_PRIMARY_BRANCH", "main"),
+        "init_version": os.getenv("INPUT_INIT_VERSION"),
+        "primary_branch": os.getenv("INPUT_PRIMARY_BRANCH"),
         "tag_prefix": {
-            "candidate": os.getenv("INPUT_TAG_PREFIX_CANDIDATE", "rc/"),
-            "release": os.getenv("INPUT_TAG_PREFIX_RELEASE", "")
+            "candidate": os.getenv("INPUT_TAG_PREFIX_CANDIDATE"),
+            "release": os.getenv("INPUT_TAG_PREFIX_RELEASE")
         },
         "github": {
             "repository": os.getenv("GITHUB_REPOSITORY"),
@@ -65,8 +65,8 @@ def get_config():
             "token": os.environ.get("INPUT_GITHUB_TOKEN")
         },
         "features": {
-            "enable_git_push": os.getenv("INPUT_ENABLE_GIT_PUSH", "true"),
-            "enable_github_release": os.environ.get("INPUT_ENABLE_GITHUB_RELEASE", "true")
+            "enable_git_push": os.getenv("INPUT_ENABLE_GIT_PUSH"),
+            "enable_github_release": os.environ.get("INPUT_ENABLE_GITHUB_RELEASE")
         },
         "auto_release_branches": os.getenv("INPUT_AUTO_RELEASE_BRANCHES", "").split(","),
         "log_level": log_levels.get(log_level.lower(), logging.INFO),

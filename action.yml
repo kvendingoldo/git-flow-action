@@ -18,7 +18,7 @@ inputs:
   tag_prefix_candidate:
     description: "Prefix applied to non-release Git tags"
     required: false
-    default: ""
+    default: "rc/"
   tag_prefix_release:
     description: "Prefix applied to release Git tags"
     required: false
@@ -38,11 +38,11 @@ inputs:
   enable_github_release:
     description: "Whether to create GitHub releases in addition to Git tags (requires github_token)"
     required: false
-    default: "false"
+    default: "true"
   auto_release_branches:
     description: "Whether to automatically create GitHub releases for specific branches"
     required: false
-    default: "false"
+    default: ""
   log_level:
     description: "Verbosity level for logging output (e.g., INFO, DEBUG, ERROR)"
     required: false

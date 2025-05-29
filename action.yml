@@ -1,5 +1,5 @@
 name: "git-flow workflow"
-description: "Updates version tags, creates release branches and GitHub releases"
+description: "This GitHub Action takes care of the release hustle: it auto-assigns versions to commits on your primary branch, creates release tags, and publishes GitHub Releases — all following Git Flow. You write the code, it does the rest"
 author: "kvendingoldo"
 
 branding:
@@ -7,40 +7,44 @@ branding:
   color: "green"
 
 inputs:
-  primary_branch:
-    description: "Main branch: master/main"
-    required: false
-    default: "main"
   init_version:
-    description: "Initial project version"
+    description: "The initial project version used for the first Git tag (e.g., 0.0.0)"
     required: false
     default: "0.0.0"
-  enable_custom_branches:
-    description: "If true, script will produce sha/x.y.z version for custom branches"
+  primary_branch:
+    description: "The main development branch (e.g., main or master)"
     required: false
-    default: "true"
-  enable_github_releases:
-    description: "If true, GitHub releases will be created as well as Git branches. Requires github_token"
+    default: "main"
+  tag_prefix_candidate:
+    description: "Prefix applied to non-release Git tags"
     required: false
-    default: "false"
-  auto_release_for_branches:
-    description: "If true, GitHub releases will be created automatically for a list of branches"
+    default: ""
+  tag_prefix_release:
+    description: "Prefix applied to release Git tags"
     required: false
-    default: "false"
+    default: ""
+  github_api_url:
+    description: "Base URL for the GitHub API"
+    required: false
+    default: "https://api.github.com"
   github_token:
-    description: "GitHub token that requires for operate under GitHub. You can use secrets GITHUB_TOKEN, check example"
+    description: "GitHub token used for authentication (the built-in GITHUB_TOKEN secret can be used)"
     required: false
     default: ""
-  release_tag_prefix:
-    description: "Prefix for Git release tags"
+  enable_git_push:
+    description: "Whether to push branches/tags to the remote Git repository"
+    required: true
+    default: "true"
+  enable_github_release:
+    description: "Whether to create GitHub releases in addition to Git tags (requires github_token)"
     required: false
-    default: ""
-  tag_prefix:
-    description: "Prefix for Git tags"
+    default: "false"
+  auto_release_branches:
+    description: "Whether to automatically create GitHub releases for specific branches"
     required: false
-    default: ""
+    default: "false"
   log_level:
-    description: "Logging level"
+    description: "Verbosity level for logging output (e.g., INFO, DEBUG, ERROR)"
     required: false
     default: "INFO"
 

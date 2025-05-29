@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import re
 import os
 import sys
 import logging
@@ -41,25 +42,34 @@ def actions_output(version):
 
 def get_config():
     logging.debug("Building config")
+
+    log_levels = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+    log_level = os.environ.get("INPUT_LOG_LEVEL", "INFO")
+
     config = {
-        "initial_version": os.getenv("INPUT_INITIAL_VERSION", "0.0.0"),
+        "init_version": os.getenv("INPUT_INIT_VERSION", "0.0.0"),
         "primary_branch": os.getenv("INPUT_PRIMARY_BRANCH", "main"),
         "tag_prefix": {
-            "candidate": os.getenv("INPUT_TAG_PREFIX_RC", "rc/"),
+            "candidate": os.getenv("INPUT_TAG_PREFIX_CANDIDATE", "rc/"),
             "release": os.getenv("INPUT_TAG_PREFIX_RELEASE", "")
         },
         "github": {
-            "url": os.getenv("GITHUB_API_URL", "https://api.github.com"),
             "repository": os.getenv("GITHUB_REPOSITORY"),
+            "url": os.getenv("INPUT_GITHUB_API_URL", "https://api.github.com"),
             "token": os.environ.get("INPUT_GITHUB_TOKEN")
         },
         "features": {
-            "enable_git_push": os.getenv("GIT_PUSH_ENABLED", "true"),
-            "enable_github_release": os.environ.get("INPUT_GITHUB_RELEASE", "true"),
-            "enable_custom_branch": os.getenv("ENABLE_CUSTOM_BRANCH", "true"),
+            "enable_git_push": os.getenv("INPUT_ENABLE_GIT_PUSH", "true"),
+            "enable_github_release": os.environ.get("INPUT_ENABLE_GITHUB_RELEASE", "true")
         },
-        "auto_release_branches": os.getenv("AUTO_RELEASE_BRANCHES", "main").split(","),
-        "log_level": os.environ.get("LOG_LEVEL", "INFO"),
+        "auto_release_branches": os.getenv("INPUT_AUTO_RELEASE_BRANCHES", "").split(","),
+        "log_level": log_levels.get(log_level.lower(), logging.INFO),
         "keywords": {
             "patch_bump": ['[hotfix]', '[fix]', 'hotfix:', 'fix:'],
             "major_bump": ['[BUMP-MAJOR]', 'bump-major', 'feat!']
@@ -70,7 +80,7 @@ def get_config():
     # This object exist only for debug logs
     #
     debug_config = config
-    debug_config["github"]["token"] = "xxx"
+    debug_config["github"]["token"] = "xxx-masked-xxx"
 
     logging.debug("Config has successfully built")
     logging.debug(debug_config)
@@ -122,17 +132,18 @@ def get_bump_type(config, commit_message):
     if any(keyword.lower() in commit_message.lower() for keyword in config["keywords"]["patch_bump"]):
         result = 'patch'
 
-    logging.info(f'Based on the commit message {commit_message} {result} bump is required')
+    logging.info(f"Based on the commit message '{commit_message}' '{result}' version bump is required")
     return result
 
 
 def get_semver_version(config, git_tag=None):
     if git_tag is None:
-        return semver.VersionInfo.parse(config["initial_version"])
+        return semver.VersionInfo.parse(config["init_version"])
 
-    git_tag_without_prefixes = git_tag
-    for tag_prefix in config["tag_prefix"]:
-        git_tag_without_prefixes = git_tag_without_prefixes.replace(config["tag_prefix"][tag_prefix], "")
+    #
+    # Delete all leading letters and symbols except digits
+    #
+    git_tag_without_prefixes = re.sub(r'^[^\d]*', '', git_tag)
 
     return semver.VersionInfo.parse(git_tag_without_prefixes)
 
@@ -167,7 +178,7 @@ def create_release_branch(config, repo, new_version):
 
 def main():
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
 
@@ -176,6 +187,8 @@ def main():
         validate_config(config)
     except ValueError as ex:
         logging.error(f"Configuration validation failed: {ex}")
+
+    logging.getLogger().setLevel(config["log_level"])
 
     repo_path = os.getcwd()
     repo = real_git.Repo(repo_path)
@@ -208,7 +221,7 @@ def main():
         tag_head = None
 
     active_branch = str(repo.active_branch)
-    commit_message = repo.head.reference.commit.message
+    commit_message = str(repo.head.reference.commit.message).rstrip('\n')
 
     logging.info("Gathering information ...")
     logging.info(f"Git branch: '{active_branch}'")
@@ -228,14 +241,16 @@ def main():
         bump_type = get_bump_type(config, commit_message)
 
         #
-        # Calculate new version
+        # Calculate new version (without any prefix)
         new_semver_version = get_new_semver_version(config, tag_last, bump_type)
-        new_tag = f"{config['tag_prefix']['candidate']}{str(new_semver_version)}"
-        logging.info(f"New tag: {new_tag}")
-        git_push_tag(config, repo, new_tag)
 
         if (active_branch in config["auto_release_branches"]) or (
                 '[RELEASE]' in commit_message and active_branch == config["primary_branch"]):
+
+            new_tag = f"{config['tag_prefix']['release']}{str(new_semver_version)}"
+            logging.info(f"New tag: {new_tag}")
+            git_push_tag(config, repo, new_tag)
+
             logging.info("Create new release")
             create_release_branch(config, repo, new_semver_version)
 
@@ -249,11 +264,15 @@ def main():
             repo.git.checkout(active_branch)
 
             new_semver_version_after_release = new_semver_version.bump_minor()
-            new_tag = f"{config['tag_prefix']['candidate']}{str(new_semver_version_after_release)}"
+            if active_branch in config["auto_release_branches"]:
+                new_tag = f"{config['tag_prefix']['release']}{str(new_semver_version_after_release)}"
+            else:
+                new_tag = f"{config['tag_prefix']['candidate']}{str(new_semver_version_after_release)}"
+
             logging.info(f"New tag for primary branch: {new_tag}")
 
             repo.git.commit('--allow-empty', '-m',
-                            f"[semver-action] Bump upstream version up to {str(new_semver_version_after_release)}")
+                            f"[git-flow-action] Bump upstream version tag up to {new_tag}")
             origin = repo.remote(name='origin')
             if config["features"]["enable_git_push"] == "true":
                 origin.push()
@@ -268,6 +287,10 @@ def main():
             #
             # Output
             actions_output(new_tag)
+        else:
+            new_tag = f"{config['tag_prefix']['candidate']}{str(new_semver_version)}"
+            logging.info(f"New tag: {new_tag}")
+            git_push_tag(config, repo, new_tag)
 
     if active_branch.startswith("release/"):
         #
@@ -303,10 +326,11 @@ def main():
         # Output
         actions_output(new_tag)
 
-    if config["features"]["enable_custom_branch"]:
+    if active_branch != config["primary_branch"] and not active_branch.startswith("release/"):
         version = "sha/" + str(repo.head.object.hexsha[0:7])
         logging.info("Custom build version is: %s", version)
-        logging.info("It is a build for custom branch (non %s or release). Tag won't be created", config["primary_branch"])
+        logging.info("It is a build for custom branch (non %s or release). Tag won't be created",
+                     config["primary_branch"])
 
         #
         # Output

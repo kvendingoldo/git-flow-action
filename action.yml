@@ -1,5 +1,5 @@
 name: "git-flow workflow"
-description: "This GitHub Action takes care of the release hustle: it auto-assigns versions to commits on your primary branch, creates release tags, and publishes GitHub Releases — all following Git Flow. You write the code, it does the rest"
+description: "GitHub Action that auto-versions commits, tags releases, and publishes them—Git Flow style. You code, it handles the release"
 author: "kvendingoldo"
 
 branding:

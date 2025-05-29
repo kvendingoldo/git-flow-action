@@ -20,8 +20,8 @@ def git(*args):
     return output
 
 
-def git_push_tag(config, repo, tag):
-    repo.git.tag(tag, 'HEAD')
+def git_create_and_push_tag(config, repo, tag, sha="HEAD"):
+    repo.git.tag(tag, sha)
 
     if config["features"]["enable_git_push"] == "true":
         repo.git.push('--tags', 'origin', 'refs/tags/{tag}'.format(tag=tag))
@@ -262,7 +262,10 @@ def main():
 
             new_tag = f"{config['tag_prefix']['release']}{str(new_semver_version)}"
             logging.info(f"New tag: {new_tag}")
-            git_push_tag(config, repo, new_tag)
+
+            #
+            # Push the tag
+            git_create_and_push_tag(config, repo, new_tag)
 
             logging.info("Create new release")
             create_release_branch(config, repo, new_semver_version)
@@ -278,6 +281,7 @@ def main():
 
             repo.git.commit('--allow-empty', '-m',
                             f"[git-flow-action] Bump upstream version tag up to {new_tag}")
+            commit_sha = repo.head.commit.hexsha
             origin = repo.remote(name='origin')
             if config["features"]["enable_git_push"] == "true":
                 origin.push()
@@ -294,8 +298,8 @@ def main():
             logging.info(f"New tag for primary branch: {new_tag}")
 
             #
-            # Push the tag
-            git_push_tag(config, repo, new_tag)
+            # Push the tag (for primary branch)
+            git_create_and_push_tag(config, repo, new_tag, commit_sha)
 
             #
             # Output
@@ -303,7 +307,7 @@ def main():
         else:
             new_tag = f"{config['tag_prefix']['candidate']}{str(new_semver_version)}"
             logging.info(f"New tag: {new_tag}")
-            git_push_tag(config, repo, new_tag)
+            git_create_and_push_tag(config, repo, new_tag)
 
     if active_branch.startswith("release/"):
         #
@@ -328,7 +332,7 @@ def main():
 
         #
         # Push the tag
-        git_push_tag(config, repo, new_tag)
+        git_create_and_push_tag(config, repo, new_tag)
 
         #
         # Create GitHub release

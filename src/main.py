@@ -336,11 +336,9 @@ def main():
             git_create_and_push_tag(config, repo, new_tag)
 
     if active_branch.startswith("release/"):
-        #
-        # Check that bump is not major
-        bump_type = get_bump_type(config, commit_message)
-        if bump_type == "major":
-            logging.error("For release branches only minor or patch version bump is available")
+        logging.warning(
+            "It's release branch, only 'patch' version bump is available. All keywords in messages are ignored")
+        bump_type = "patch"
 
         #
         # Calculate new version
@@ -367,7 +365,6 @@ def main():
                 create_github_release(config, new_tag)
             else:
                 logging.warning("GitHub release can't be created, because tags hasn't been pushed")
-
 
         #
         # Output

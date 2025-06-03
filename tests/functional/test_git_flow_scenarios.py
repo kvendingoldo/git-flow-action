@@ -174,7 +174,13 @@ class TestGitFlowScenarios:
         logger.debug(f"Created commit: {commit_sha}")
 
         # Run main to process the commit
-        main()
+        try:
+            with self.working_directory(temp_repo.working_dir):
+                main()
+            logger.debug("main() completed successfully")
+        except Exception as e:
+            logger.error(f"Error in main(): {str(e)}", exc_info=True)
+            raise
 
         # Verify no tags were created
         tags = temp_repo.git.tag('-l').split()

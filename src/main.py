@@ -320,7 +320,7 @@ def main():
             update_changelog(config, new_tag)
             repo.git.add(A=True)
             repo.git.commit('--allow-empty', '-m',
-                            f"[git-flow-action] Bump upstream version tag up to {new_tag} [skip ci]")
+                            f"chore(release): Bump upstream version tag up to {new_tag} [skip ci]")
 
             commit_sha = repo.head.commit.hexsha
             origin = repo.remote(name='origin')

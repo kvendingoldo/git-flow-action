@@ -47,22 +47,40 @@ class TestGitFlowScenarios:
 
         # Initialize git repository
         repo = Repo.init(temp_dir)
+        logger.debug(f"Initialized git repository in {temp_dir}")
 
         # Configure git user
         repo.git.config('user.name', 'Test User')
         repo.git.config('user.email', 'test@example.com')
+        logger.debug("Configured git user")
 
         # Configure git to allow tags
         repo.git.config('--local', 'tag.sort', 'version:refname')
         repo.git.config('--local', 'tag.gpgsign', 'false')
+        logger.debug("Configured git tag settings")
 
         # Add a dummy origin remote
         repo.create_remote('origin', 'file:///tmp/dummy-remote')
+        logger.debug("Added dummy origin remote")
 
         # Create initial commit
         (Path(temp_dir) / 'README.md').write_text('# Test Repository')
         repo.git.add('README.md')
         repo.git.commit('-m', 'Initial commit')
+        logger.debug("Created initial commit")
+
+        # Get current branch name and force rename to main
+        current_branch = repo.active_branch.name
+        logger.debug(f"Current branch before rename: {current_branch}")
+
+        # Force rename to main regardless of current name
+        repo.git.branch('-m', 'main')
+        logger.debug("Renamed branch to 'main'")
+
+        # Verify the rename worked
+        new_branch = repo.active_branch.name
+        logger.debug(f"Current branch after rename: {new_branch}")
+        assert new_branch == 'main', f"Failed to rename branch to main. Current branch is {new_branch}"
 
         return repo
 

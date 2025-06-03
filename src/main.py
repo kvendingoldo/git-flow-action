@@ -123,7 +123,8 @@ def create_github_release(config, tag):
     )
 
     if not res:
-        logging.error(f"Failed to create Github release for {tag} tag. Error: {res.text}")
+        logging.error(
+            f"Failed to create Github release for {tag} tag. Error: {res.text}")
         res.raise_for_status()
 
 
@@ -142,7 +143,8 @@ def get_bump_type(config, commit_message):
     if any(keyword.lower() in commit_message.lower() for keyword in config["keywords"]["patch_bump"]):
         result = 'patch'
 
-    logging.info(f"Based on the commit message '{commit_message}' '{result}' version bump is required")
+    logging.info(
+        f"Based on the commit message '{commit_message}' '{result}' version bump is required")
     return result
 
 
@@ -181,9 +183,11 @@ def create_release_branch(config, repo, new_version):
             repo.git.push('-u', 'origin', branch_name)
             logging.info(f"Release branch {branch_name} successfully pushed")
         else:
-            logging.warning("Release branch push has been skipped due to config flag")
+            logging.warning(
+                "Release branch push has been skipped due to config flag")
     except Exception as ex:
-        logging.info(f"Failed to create release branch {branch_name}. Error: {ex}")
+        logging.info(
+            f"Failed to create release branch {branch_name}. Error: {ex}")
 
 
 def update_changelog(config, new_tag):
@@ -234,7 +238,8 @@ def main():
     # Get Git tag (for latest available)
     #
     try:
-        tag_last = repo.git.describe('--tags', '--abbrev=0', '--candidates=100')
+        tag_last = repo.git.describe(
+            '--tags', '--abbrev=0', '--candidates=100')
     except GitCommandError as ex:
         logging.warning("Not found any latest available Git tag")
         logging.debug(ex)
@@ -272,7 +277,8 @@ def main():
 
         #
         # Calculate new version (without any prefix)
-        new_semver_version = get_new_semver_version(config, tag_last, bump_type)
+        new_semver_version = get_new_semver_version(
+            config, tag_last, bump_type)
 
         if (active_branch in config["auto_release_branches"]) or (
                 '[RELEASE]' in commit_message and active_branch == config["primary_branch"]):
@@ -293,7 +299,8 @@ def main():
                 if config["features"]["enable_git_push"] == "true":
                     create_github_release(config, new_tag)
                 else:
-                    logging.warning("GitHub release can't be created, because tags hasn't been pushed")
+                    logging.warning(
+                        "GitHub release can't be created, because tags hasn't been pushed")
 
             #
             # Switch back, and bump version in primary branch
@@ -313,7 +320,7 @@ def main():
             update_changelog(config, new_tag)
             repo.git.add(A=True)
             repo.git.commit('--allow-empty', '-m',
-                            f"[git-flow-action] Bump upstream version tag up to {new_tag}")
+                            f"[git-flow-action] Bump upstream version tag up to {new_tag} [skip ci]")
 
             commit_sha = repo.head.commit.hexsha
             origin = repo.remote(name='origin')
@@ -321,7 +328,8 @@ def main():
                 origin.push()
                 logging.info("Git branch has been pushed")
             else:
-                logging.warning("Git branch push has been skipped due to config flag")
+                logging.warning(
+                    "Git branch push has been skipped due to config flag")
 
             #
             # Push the tag (for primary branch)
@@ -342,7 +350,8 @@ def main():
 
         #
         # Calculate new version
-        new_semver_version = get_new_semver_version(config, tag_last, bump_type)
+        new_semver_version = get_new_semver_version(
+            config, tag_last, bump_type)
         new_tag = f"{config['tag_prefix']['release']}{str(new_semver_version)}"
         logging.info(f"New tag: {new_tag}")
 
@@ -364,7 +373,8 @@ def main():
             if config["features"]["enable_git_push"] == "true":
                 create_github_release(config, new_tag)
             else:
-                logging.warning("GitHub release can't be created, because tags hasn't been pushed")
+                logging.warning(
+                    "GitHub release can't be created, because tags hasn't been pushed")
 
         #
         # Output

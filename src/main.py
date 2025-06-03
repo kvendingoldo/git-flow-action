@@ -144,8 +144,8 @@ def get_config():
             "release": os.getenv("INPUT_TAG_PREFIX_RELEASE", "")
         },
         "git": {
-            "name": "git-flow-action",
-            "email": "git-flow-action@example.com"
+            "name": "gitflow-action",
+            "email": "gitflow-action@yandex.com"
         },
         "github": {
             "repository": os.getenv("GITHUB_REPOSITORY"),

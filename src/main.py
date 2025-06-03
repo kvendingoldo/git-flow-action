@@ -1,6 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+Git Flow Action - A GitHub Action for automated semantic versioning and release management.
+
+This module implements a GitHub Action that automates version management following Git Flow principles.
+It provides functionality for:
+- Automatic version bumping based on commit messages
+- Git tag creation and management
+- Release branch creation
+- GitHub release creation
+- Changelog updates
+
+The action supports semantic versioning (MAJOR.MINOR.PATCH) and can be configured to:
+- Use custom tag prefixes for releases and candidates
+- Enable/disable Git push operations
+- Enable/disable GitHub release creation
+- Customize version bump keywords
+- Manage multiple release branches
+"""
+
 import copy
 import re
 import os
@@ -16,12 +35,44 @@ from pathlib import Path
 
 
 def git(*args):
+    """
+    Execute a git command and return its output.
+
+    Args:
+        *args: Variable length argument list of git command and its arguments.
+            All arguments must be strings.
+
+    Returns:
+        str: The output of the git command.
+
+    Raises:
+        TypeError: If any argument is not a string.
+        subprocess.CalledProcessError: If the git command fails.
+    """
+    # Validate that all arguments are strings
+    for arg in args:
+        if not isinstance(arg, str):
+            raise TypeError(
+                f"Git command arguments must be strings, got {type(arg)}")
+
     output = subprocess.check_output(["git"] + list(args)).decode().strip()
     logging.info("Git command %s produced output:\n%s\n=======", args, output)
     return output
 
 
 def git_create_and_push_tag(config, repo, tag, sha="HEAD"):
+    """
+    Create a git tag and optionally push it to the remote repository.
+
+    Args:
+        config (dict): Configuration dictionary containing feature flags.
+        repo (git.Repo): Git repository object.
+        tag (str): Tag name to create.
+        sha (str, optional): Commit SHA to tag. Defaults to "HEAD".
+
+    Note:
+        The tag will only be pushed if enable_git_push is set to "true" in the config.
+    """
     repo.git.tag(tag, sha)
 
     if config["features"]["enable_git_push"] == "true":
@@ -32,6 +83,17 @@ def git_create_and_push_tag(config, repo, tag, sha="HEAD"):
 
 
 def actions_output(version):
+    """
+    Set GitHub Actions outputs for version information.
+
+    Args:
+        version (str): Version string to output.
+
+    Note:
+        Creates two outputs:
+        - version: The original version string
+        - safe_version: A filesystem-safe version of the string
+    """
     safe_version = version.replace("/", "-")
 
     logging.debug("Generated version is: %s", version)
@@ -44,6 +106,25 @@ def actions_output(version):
 
 
 def get_config():
+    """
+    Build and return the configuration dictionary from environment variables.
+
+    Returns:
+        dict: Configuration dictionary containing:
+            - init_version: Initial version for new repositories
+            - primary_branch: Name of the primary branch
+            - tag_prefix: Prefixes for release and candidate tags
+            - git: Git user configuration
+            - github: GitHub repository and API configuration
+            - features: Feature flags for git push and GitHub releases
+            - auto_release_branches: List of branches that trigger releases
+            - log_level: Logging level
+            - keywords: Keywords for version bumping
+            - paths: Paths to important files
+
+    Note:
+        Sensitive information in the config is masked in debug logs.
+    """
     logging.debug("Building config")
 
     log_levels = {
@@ -99,10 +180,29 @@ def get_config():
 
 
 def validate_config(config):
+    """
+    Validate the configuration dictionary.
+
+    Args:
+        config (dict): Configuration dictionary to validate.
+
+    Raises:
+        ValueError: If required configuration values are missing or invalid.
+    """
     logging.info("Config validation passed successfully.")
 
 
 def create_github_release(config, tag):
+    """
+    Create a GitHub release for the specified tag.
+
+    Args:
+        config (dict): Configuration dictionary containing GitHub settings.
+        tag (str): Tag name to create a release for.
+
+    Raises:
+        requests.exceptions.RequestException: If the GitHub API request fails.
+    """
     release_data = {
         "name": tag,
         "tag_name": tag,
@@ -129,6 +229,22 @@ def create_github_release(config, tag):
 
 
 def get_bump_type(config, commit_message):
+    """
+    Determine the type of version bump needed based on commit message.
+
+    Args:
+        config (dict): Configuration dictionary containing bump keywords.
+        commit_message (str): The commit message to analyze.
+
+    Returns:
+        str: One of 'major', 'minor', or 'patch' indicating the bump type.
+
+    Note:
+        The bump type is determined by checking for keywords in the commit message:
+        - major: Keywords from config["keywords"]["major_bump"]
+        - patch: Keywords from config["keywords"]["patch_bump"]
+        - minor: Default if no other keywords are found
+    """
     result = 'minor'
 
     #
@@ -149,6 +265,20 @@ def get_bump_type(config, commit_message):
 
 
 def get_semver_version(config, git_tag=None):
+    """
+    Parse a semantic version from a git tag or return the initial version.
+
+    Args:
+        config (dict): Configuration dictionary containing init_version.
+        git_tag (str, optional): Git tag to parse version from. Defaults to None.
+
+    Returns:
+        semver.VersionInfo: Parsed semantic version.
+
+    Note:
+        If git_tag is None, returns the initial version from config.
+        Otherwise, strips any prefix from the tag and parses the version.
+    """
     if git_tag is None:
         return semver.VersionInfo.parse(config["init_version"])
 
@@ -161,6 +291,22 @@ def get_semver_version(config, git_tag=None):
 
 
 def get_new_semver_version(config, tag_last, bump_type):
+    """
+    Calculate a new semantic version based on the current version and bump type.
+
+    Args:
+        config (dict): Configuration dictionary.
+        tag_last (str): Current version tag.
+        bump_type (str): Type of version bump ('major', 'minor', or 'patch').
+
+    Returns:
+        semver.VersionInfo: New semantic version.
+
+    Note:
+        - patch: Increments the patch version
+        - minor: Increments the minor version and resets patch
+        - major: Increments the major version and resets minor and patch
+    """
     version = get_semver_version(config, tag_last)
 
     if bump_type == 'patch':
@@ -172,6 +318,18 @@ def get_new_semver_version(config, tag_last, bump_type):
 
 
 def create_release_branch(config, repo, new_version):
+    """
+    Create a new release branch for the specified version.
+
+    Args:
+        config (dict): Configuration dictionary containing feature flags.
+        repo (git.Repo): Git repository object.
+        new_version (semver.VersionInfo): Version to create branch for.
+
+    Note:
+        Creates a branch named 'release/X.Y' where X.Y is the major.minor version.
+        The branch will only be pushed if enable_git_push is set to "true" in the config.
+    """
     branch_version = '.'.join(map(str, new_version[0:2]))
     branch_name = f"release/{branch_version}"
 
@@ -191,6 +349,17 @@ def create_release_branch(config, repo, new_version):
 
 
 def update_changelog(config, new_tag):
+    """
+    Update the changelog file with a new version entry.
+
+    Args:
+        config (dict): Configuration dictionary containing changelog path.
+        new_tag (str): New version tag to add to changelog.
+
+    Note:
+        Creates the changelog file if it doesn't exist.
+        Adds the new version entry at the top of the file.
+    """
     changelog_file = Path(config["paths"]["changelog"])
 
     changelog_notes = f"""## {new_tag}"""
@@ -205,6 +374,20 @@ def update_changelog(config, new_tag):
 
 
 def main():
+    """
+    Main entry point for the Git Flow Action.
+
+    This function:
+    1. Sets up logging and configuration
+    2. Configures Git
+    3. Determines the current version and branch
+    4. Calculates and creates new versions as needed
+    5. Creates releases and updates changelog
+    6. Outputs version information
+
+    Returns:
+        int: Exit code (0 for success, non-zero for failure)
+    """
     logging.basicConfig(
         level=logging.DEBUG,
         format='%(asctime)s - %(levelname)s - %(message)s'
@@ -383,8 +566,8 @@ def main():
     if active_branch != config["primary_branch"] and not active_branch.startswith("release/"):
         version = "sha/" + str(repo.head.object.hexsha[0:7])
         logging.info("Custom build version is: %s", version)
-        logging.info("It is a build for custom branch (non %s or release). Tag won't be created",
-                     config["primary_branch"])
+        logging.info(
+            "It is a build for custom branch (non %s or release). Tag won't be created", config["primary_branch"])
 
         #
         # Output

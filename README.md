@@ -1,142 +1,142 @@
-# 🚀 Git Flow Action
+# Git Flow Action
 
-> Automate your Git Flow workflow with semantic versioning, automatic releases, and smart branch management
+A GitHub Action that automates semantic versioning and release management following Git Flow principles. This action helps maintain a clean and consistent versioning strategy for your repositories.
 
-[![GitHub Actions](https://img.shields.io/github/actions/workflow/status/kvendingoldo/git-flow-action/pipeline.yaml?branch=main)](https://github.com/kvendingoldo/git-flow-action/actions)
-[![Codecov](https://img.shields.io/codecov/c/github/kvendingoldo/git-flow-action)](https://codecov.io/gh/kvendingoldo/git-flow-action)
-[![License](https://img.shields.io/github/license/kvendingoldo/git-flow-action)](LICENSE)
+## Features
 
-## ✨ Features
+- 🔄 **Automatic Version Bumping**: Automatically determines version bumps (major/minor/patch) based on commit messages
+- 🏷️ **Tag Management**: Creates and manages Git tags with customizable prefixes
+- 🌳 **Branch Management**: Supports Git Flow branching strategy with automatic release branch creation
+- 📝 **Changelog Updates**: Automatically updates CHANGELOG.md with new versions
+- 🚀 **GitHub Releases**: Creates GitHub releases for new versions
+- 🔍 **Configurable Keywords**: Customize commit message keywords for version bumping
+- 🔒 **Security**: Supports GitHub token authentication for secure operations
 
-- 🔄 **Smart Semantic Versioning**: Automatically bumps versions based on commit messages
-- 🏷️ **Flexible Tagging**: Support for both release and candidate tags with customizable prefixes
-- 🌿 **Branch Management**: Automatic release branch creation and management
-- 📝 **Commit Message Analysis**: Intelligent version bumping based on commit message keywords
-- 🔧 **Configurable Workflow**: Customize behavior through environment variables
-- 📦 **GitHub Release Integration**: Optional automatic GitHub release creation
-- 🔒 **Security First**: Safe git operations with proper authentication
+## Usage
 
-## 🎯 Use Cases
-
-- **Continuous Delivery**: Automate version management in your CI/CD pipeline
-- **Release Management**: Streamline the release process with automatic versioning
-- **Branch Strategy**: Implement Git Flow with automated branch creation
-- **Version Control**: Maintain consistent semantic versioning across your project
-
-## 🚀 Quick Start
-
-Add this action to your workflow:
+### Basic Setup
 
 ```yaml
-name: Version Management
+name: Git Flow
 
 on:
   push:
     branches:
       - main
-      - 'release/**'
+      - develop
 
 jobs:
   version:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Git Flow Action
+      - name: Git Flow
         uses: kvendingoldo/git-flow-action@v1
         with:
-          init_version: "0.0.0"
-          primary_branch: "main"
-          tag_prefix_release: "v"
-          tag_prefix_candidate: "rc/"
-          enable_git_push: "true"
-          enable_github_release: "true"
-          auto_release_branches: "main"
+          init_version: "1.0.0"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-## ⚙️ Configuration
+### Configuration Options
 
-| Input | Description | Default |
-|-------|-------------|---------|
-| `init_version` | Initial version for new repositories | Required |
-| `primary_branch` | Name of your primary branch | "main" |
-| `tag_prefix_release` | Prefix for release tags | "" |
-| `tag_prefix_candidate` | Prefix for candidate tags | "" |
-| `enable_git_push` | Enable pushing tags and branches | "false" |
-| `enable_github_release` | Create GitHub releases | "false" |
-| `auto_release_branches` | Comma-separated list of branches for auto-release | "" |
-| `log_level` | Logging level (debug, info, warning, error) | "info" |
+| Input | Description | Default | Required |
+|-------|-------------|---------|----------|
+| `init_version` | Initial version for new repositories | - | Yes |
+| `primary_branch` | Name of the primary branch | `main` | No |
+| `tag_prefix_release` | Prefix for release tags | `v` | No |
+| `tag_prefix_candidate` | Prefix for release candidate tags | `rc/` | No |
+| `enable_git_push` | Enable pushing to remote repository | `false` | No |
+| `enable_github_release` | Enable creating GitHub releases | `false` | No |
+| `auto_release_branches` | Comma-separated list of branches that trigger releases | - | No |
+| `log_level` | Logging level (debug/info/warning/error/critical) | `info` | No |
 
-## 📝 Commit Message Convention
+### Version Bumping
 
-The action automatically determines version bumps based on commit messages:
+The action automatically determines version bumps based on commit message keywords:
 
-- **Major Version**: Use `[BUMP-MAJOR]`, `bump-major`, or `feat!` in commit message
-- **Patch Version**: Use `[hotfix]`, `[fix]`, `hotfix:`, or `fix:` in commit message
-- **Minor Version**: Default bump for other commit messages
+- **Major Version** (`[BUMP-MAJOR]`, `bump-major`, `feat!`)
+- **Patch Version** (`[hotfix]`, `[fix]`, `hotfix:`, `fix:`)
+- **Minor Version** (default for all other commits)
 
-## 🌿 Branch Strategy
+### Branch Strategy
 
-- **Primary Branch**: Version bumps based on commit messages
-- **Release Branches**: Only patch version bumps allowed
-- **Feature Branches**: No version bumps, uses commit SHA
+- **Primary Branch** (e.g., `main`): Creates release candidates and handles version bumps
+- **Release Branches** (`release/*`): Creates release versions and GitHub releases
+- **Other Branches**: Creates custom build versions with commit SHA
 
-## 🔄 Workflow Example
+### Examples
 
-1. **Feature Development**:
-   ```bash
-   git checkout -b feature/new-feature
-   git commit -m "feat: add new feature"
-   ```
+#### Basic Release Workflow
 
-2. **Release Creation**:
-   ```bash
-   git checkout main
-   git commit -m "feat: new feature"
-   # Action creates v1.0.0 tag and release/1.0 branch
-   ```
-
-3. **Hotfix**:
-   ```bash
-   git checkout release/1.0
-   git commit -m "fix: critical bug"
-   # Action creates v1.0.1 tag
-   ```
-
-## 📚 Examples
-
-### Basic Setup
 ```yaml
-- uses: kvendingoldo/git-flow-action@v1
-  with:
-    init_version: "1.0.0"
-    enable_git_push: "true"
+name: Git Flow
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Git Flow
+        uses: your-username/git-flow-action@v1
+        with:
+          init_version: "1.0.0"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          enable_git_push: true
+          enable_github_release: true
+          auto_release_branches: "main,develop"
 ```
 
-### Full Configuration
+#### Custom Tag Prefixes
+
 ```yaml
-- uses: kvendingoldo/git-flow-action@v1
-  with:
-    init_version: "0.0.0"
-    primary_branch: "main"
-    tag_prefix_release: "v"
-    tag_prefix_candidate: "rc/"
-    enable_git_push: "true"
-    enable_github_release: "true"
-    auto_release_branches: "main,develop"
-    log_level: "debug"
+      - name: Git Flow
+        uses: your-username/git-flow-action@v1
+        with:
+          init_version: "1.0.0"
+          tag_prefix_release: "release-"
+          tag_prefix_candidate: "candidate-"
 ```
 
-## 🤝 Contributing
+## Outputs
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+The action provides the following outputs:
 
-## 📄 License
+- `version`: The new version tag (e.g., `v1.0.0`)
+- `safe_version`: A safe version string for use in filenames (e.g., `v1-0-0`)
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## Contributing
 
-## ⭐ Support
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
-If you find this action helpful, please give it a star! For issues and feature requests, please use the [GitHub issue tracker](https://github.com/kvendingoldo/git-flow-action/issues).
+
+## Acknowledgments
+
+- Inspired by Git Flow branching strategy
+- Built with Python and GitHub Actions
+- Uses semantic versioning (semver) for version management
+
+
+<a href="https://star-history.com/#kvendingoldo/git-flow-action&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=kvendingoldo/git-flow-action&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=kvendingoldo/git-flow-action&type=Date" />
+  </picture>
+</a>
+
+<!-- markdownlint-enable no-inline-html -->
+
+<a id="licence"></a>
+## LICENSE
+The kvendingoldo/git-flow-action project is distributed under the Apache 2.0 license. See [LICENSE](LICENSE).

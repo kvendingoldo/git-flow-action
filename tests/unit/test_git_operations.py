@@ -1,8 +1,11 @@
+"""Unit tests for Git operations."""
+
 import os
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 from git import Repo, GitCommandError
 import semver
+import subprocess
 
 # Import the functions we want to test
 from src.main import (
@@ -10,17 +13,23 @@ from src.main import (
     get_semver_version,
     get_new_semver_version,
     create_release_branch,
-    get_bump_type
+    get_bump_type,
+    git
 )
 
 
 @pytest.fixture
+def mock_git():
+    """Mock git command execution."""
+    with patch('subprocess.check_output') as mock_check_output:
+        yield mock_check_output
+
+
+@pytest.fixture
 def mock_repo():
-    """Fixture that provides a mocked Git repository"""
-    repo = Mock(spec=Repo)
-    repo.git = Mock()
-    repo.active_branch = Mock()
-    repo.active_branch.name = "main"
+    """Mock git repository."""
+    repo = MagicMock()
+    repo.git = MagicMock()
     return repo
 
 
@@ -192,3 +201,135 @@ class TestBumpTypeDetection:
         commit_message = "FIX: bug fix"
         bump_type = get_bump_type(basic_config, commit_message)
         assert bump_type == 'patch'
+
+
+def test_git_success(mock_git):
+    """Test successful git command execution."""
+    mock_git.return_value = b"success"
+    result = git("status")
+    assert result == "success"
+    mock_git.assert_called_once_with(["git", "status"])
+
+
+def test_git_failure(mock_git):
+    """Test git command failure."""
+    mock_git.side_effect = subprocess.CalledProcessError(1, "git status")
+    with pytest.raises(subprocess.CalledProcessError):
+        git("status")
+
+
+def test_git_create_and_push_tag_success(mock_repo):
+    """Test successful tag creation and push."""
+    config = {
+        "features": {
+            "enable_git_push": "true"
+        }
+    }
+    tag = "v1.0.0"
+
+    git_create_and_push_tag(config, mock_repo, tag)
+
+    mock_repo.git.tag.assert_called_once_with(tag, "HEAD")
+    mock_repo.git.push.assert_called_once_with(
+        '--tags', 'origin', f"refs/tags/{tag}")
+
+
+def test_git_create_and_push_tag_no_push(mock_repo):
+    """Test tag creation without push."""
+    config = {
+        "features": {
+            "enable_git_push": "false"
+        }
+    }
+    tag = "v1.0.0"
+
+    git_create_and_push_tag(config, mock_repo, tag)
+
+    mock_repo.git.tag.assert_called_once_with(tag, "HEAD")
+    mock_repo.git.push.assert_not_called()
+
+
+def test_git_create_and_push_tag_with_sha(mock_repo):
+    """Test tag creation with specific SHA."""
+    config = {
+        "features": {
+            "enable_git_push": "true"
+        }
+    }
+    tag = "v1.0.0"
+    sha = "abc123"
+
+    git_create_and_push_tag(config, mock_repo, tag, sha)
+
+    mock_repo.git.tag.assert_called_once_with(tag, sha)
+    mock_repo.git.push.assert_called_once_with(
+        '--tags', 'origin', f"refs/tags/{tag}")
+
+
+def test_git_create_and_push_tag_failure(mock_repo):
+    """Test tag creation failure."""
+    config = {
+        "features": {
+            "enable_git_push": "true"
+        }
+    }
+    tag = "v1.0.0"
+    mock_repo.git.tag.side_effect = GitCommandError(
+        "tag", "Tag already exists")
+
+    with pytest.raises(GitCommandError):
+        git_create_and_push_tag(config, mock_repo, tag)
+
+
+def test_git_push_failure(mock_repo):
+    """Test tag push failure."""
+    config = {
+        "features": {
+            "enable_git_push": "true"
+        }
+    }
+    tag = "v1.0.0"
+    mock_repo.git.push.side_effect = GitCommandError("push", "Push failed")
+
+    with pytest.raises(GitCommandError):
+        git_create_and_push_tag(config, mock_repo, tag)
+
+
+def test_git_command_with_multiple_args(mock_git):
+    """Test git command with multiple arguments."""
+    mock_git.return_value = b"success"
+    result = git("commit", "-m", "test message")
+    assert result == "success"
+    mock_git.assert_called_once_with(["git", "commit", "-m", "test message"])
+
+
+def test_git_command_with_special_chars(mock_git):
+    """Test git command with special characters in arguments."""
+    mock_git.return_value = b"success"
+    result = git("commit", "-m", "test message with spaces and @#$%")
+    assert result == "success"
+    mock_git.assert_called_once_with(
+        ["git", "commit", "-m", "test message with spaces and @#$%"])
+
+
+def test_git_command_with_empty_args(mock_git):
+    """Test git command with empty arguments."""
+    mock_git.return_value = b"success"
+    result = git("")
+    assert result == "success"
+    mock_git.assert_called_once_with(["git", ""])
+
+
+def test_git_command_with_none_args(mock_git):
+    """Test git command with None arguments."""
+    mock_git.return_value = b"success"
+    # None is not a valid argument type
+    with pytest.raises(TypeError, match="Git command arguments must be strings, got <class 'NoneType'>"):
+        git(None)
+
+
+def test_git_command_with_invalid_args(mock_git):
+    """Test git command with invalid argument types."""
+    mock_git.return_value = b"success"
+    with pytest.raises(TypeError):
+        git(123)  # Non-string argument

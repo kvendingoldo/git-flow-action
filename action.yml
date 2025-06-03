@@ -57,4 +57,4 @@ outputs:
 runs:
   using: "docker"
   #image: 'Dockerfile'
-  image: "docker://kvendingoldo/git-flow-action:v1.2.0"
+  image: "docker://kvendingoldo/git-flow-action:v1.2.2"

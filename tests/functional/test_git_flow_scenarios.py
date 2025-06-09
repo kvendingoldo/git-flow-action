@@ -216,16 +216,19 @@ class TestGitFlowScenarios:
             ("fix: bug fix", "rc/0.1.1"),
             ("chore: update dependencies", "rc/0.2.0"),
             ("hotfix: update readme", "rc/0.2.1"),
+            ("fix: update readme", "rc/0.2.2"),
+            ("hotfix: update readme", "rc/0.2.3"),
             ("style: format code", "rc/0.3.0"),
             ("refactor: restructure code", "rc/0.4.0"),
-            ("perf: improve performance", "rc/0.5.0"),
+            ("refactor: restructure code, pt2", "rc/0.5.0"),
+            ("perf: improve performance", "rc/0.6.0"),
             ("[BUMP-MAJOR] new major version", "rc/1.0.0"),
             ("[hotfix]: update build system", "rc/1.0.1"),
             ("ci: update ci config", "rc/1.1.0"),
             ("revert: revert last change", "rc/1.2.0"),
             ("feat! breaking change", "rc/2.0.0"),
-            ("[RELEASE] feat: breaking change", "rc/2.2.0"),
-            ("feat: some change2", "rc/2.3.0")
+            ("[RELEASE] feat: breaking change", "v2.1.0"),
+            ("feat: some change2", "rc/2.2.0")
         ]
 
         self.check(temp_repo, keyword_tests)
@@ -247,18 +250,18 @@ class TestGitFlowScenarios:
         temp_repo = self.init_repo()
 
         keyword_tests = [
-            ("feat: new feature", "100.2.0"),
-            ("fix: bug fix", "100.3.0"),
-            ("chore: update dependencies", "100.5.0"),
-            ("hotfix: update readme", "100.6.0"),
-            ("style: format code", "100.8.0"),
-            ("refactor: restructure code", "100.10.0"),
-            ("[BUMP-MAJOR] new major version", "101.1.0"),
-            ("[hotfix]: update build system", "101.2.0"),
-            ("ci: update ci config", "101.4.0"),
-            ("revert: revert last change", "101.6.0"),
-            ("feat! breaking change", "102.1.0"),
-            ("[RELEASE] feat: breaking change", "102.3.0"),
+            ("feat: new feature", "100.1.0"),
+            ("fix: bug fix", "100.2.0"),
+            ("chore: update dependencies", "100.3.0"),
+            ("hotfix: update readme", "100.4.0"),
+            ("style: format code", "100.5.0"),
+            ("refactor: restructure code", "100.6.0"),
+            ("[BUMP-MAJOR] new major version", "101.0.0"),
+            ("[hotfix]: update build system", "101.1.0"),
+            ("ci: update ci config", "101.2.0"),
+            ("revert: revert last change", "101.3.0"),
+            ("feat! breaking change", "102.0.0"),
+            ("[RELEASE] feat: breaking change", "102.1.0"),
         ]
 
         self.check(temp_repo, keyword_tests)
@@ -325,10 +328,10 @@ class TestGitFlowScenarios:
         # Map of commits to their expected tags and release branches
         # Format: (commit_message, expected_tag, expected_release_branch)
         main_commits = [
-            ("feat: new feature after merge", "v0.2.0", "release/0.1"),
-            ("fix: bug fix", "v0.3.0", "release/0.2"),
-            ("feat: another feature", "v0.5.0", "release/0.4"),
-            ("feat! breaking change", "v1.1.0", "release/1.0"),
+            ("feat: new feature after merge", "v0.1.0", "release/0.1"),
+            ("fix: bug fix", "v0.2.0", "release/0.2"),
+            ("feat: another feature", "v0.3.0", "release/0.3"),
+            ("feat! breaking change", "v1.0.0", "release/1.0"),
         ]
 
         for commit_msg, expected_tag, expected_release_branch in main_commits:
@@ -363,7 +366,7 @@ class TestGitFlowScenarios:
             feature_branch,
             'release/0.1',
             'release/0.2',
-            'release/0.4',
+            'release/0.3',
             'release/1.0'
         }
         assert set(
@@ -453,7 +456,7 @@ class TestGitFlowScenarios:
             main()
 
         # Verify second release branch was created
-        new_release_branch = "release/0.3"
+        new_release_branch = "release/0.2"
         branches = [b.name for b in temp_repo.branches]
         assert new_release_branch in branches, f"Release branch {new_release_branch} was not created"
         logger.debug(f"Verified release branch {new_release_branch} exists")
@@ -464,9 +467,11 @@ class TestGitFlowScenarios:
 
         # Make commits on new release branch
         new_release_commits = [
-            ("fix: fix in new release", "v0.3.1"),
-            ("fix: critical fix", "v0.3.2"),
-            ("docs: update new release", "v0.3.3"),
+            ("fix: fix in new release", "v0.2.1"),
+            ("fix: critical fix", "v0.2.2"),
+            ("docs: update new release", "v0.2.3"),
+            ("feat: update new release", "v0.2.4"),
+            ("bump-major: update new release", "v0.2.5")
         ]
 
         for commit_msg, expected_tag in new_release_commits:

@@ -160,7 +160,8 @@ def get_config():
         "log_level": log_levels.get(log_level.lower(), logging.INFO),
         "keywords": {
             "patch_bump": ['[hotfix]', '[fix]', 'hotfix:', 'fix:'],
-            "major_bump": ['[BUMP-MAJOR]', 'bump-major', 'feat!']
+            "major_bump": ['[BUMP-MAJOR]', 'bump-major', 'feat!'],
+            "skip_ci": "[skip ci]"
         },
         "paths": {
             "changelog": "CHANGELOG.md"
@@ -458,52 +459,35 @@ def main():
     if active_branch == config["primary_branch"]:
         bump_type = get_bump_type(config, commit_message)
 
-        #
-        # Calculate new version (without any prefix)
-        new_semver_version = get_new_semver_version(
-            config, tag_last, bump_type)
-
         if (active_branch in config["auto_release_branches"]) or (
                 '[RELEASE]' in commit_message and active_branch == config["primary_branch"]):
 
-            new_tag = f"{config['tag_prefix']['release']}{str(new_semver_version)}"
-            logging.info(f"New tag: {new_tag}")
+            if bump_type == "patch":
+                logging.warning("It's impossible to use 'patch' bump type; 'minor' version bump will be used")
+                bump_type = "minor"
 
             #
-            # Push the tag
-            git_create_and_push_tag(config, repo, new_tag)
-
-            logging.info("Create new release")
-            create_release_branch(config, repo, new_semver_version)
-
+            # Calculate new version (without any prefix)
             #
-            # Create GitHub release
-            if config["features"]["enable_github_release"] == "true":
-                if config["features"]["enable_git_push"] == "true":
-                    create_github_release(config, new_tag)
-                else:
-                    logging.warning(
-                        "GitHub release can't be created, because tags hasn't been pushed")
-
-            #
-            # Switch back, and bump version in primary branch
-            repo.git.checkout(active_branch)
+            new_semver_version = get_new_semver_version(
+                config, tag_last, bump_type
+            )
 
             #
             # Calculate new tag
-            new_semver_version_after_release = new_semver_version.bump_minor()
-            if active_branch in config["auto_release_branches"]:
-                new_tag = f"{config['tag_prefix']['release']}{str(new_semver_version_after_release)}"
-            else:
-                new_tag = f"{config['tag_prefix']['candidate']}{str(new_semver_version_after_release)}"
+            #
+            new_tag = f"{config['tag_prefix']['release']}{str(new_semver_version)}"
             logging.info(f"New tag for primary branch: {new_tag}")
 
             #
-            # Update changelog
+            # Generate changelog
+            #
             update_changelog(config, new_tag)
             repo.git.add(A=True)
-            repo.git.commit('--allow-empty', '-m',
-                            f"chore(release): Bump upstream version tag up to {new_tag} [skip ci]")
+            repo.git.commit(
+                '--allow-empty', '-m',
+                f"chore(release): version {new_tag} {config['keywords']['skip_ci']}"
+            )
 
             commit_sha = repo.head.commit.hexsha
             origin = repo.remote(name='origin')
@@ -515,13 +499,43 @@ def main():
                     "Git branch push has been skipped due to config flag")
 
             #
-            # Push the tag (for primary branch)
+            # Push new tag (for primary branch)
+            #
             git_create_and_push_tag(config, repo, new_tag, commit_sha)
 
             #
+            # Create GitHub release
+            #
+            if config["features"]["enable_github_release"] == "true":
+                if config["features"]["enable_git_push"] == "true":
+                    create_github_release(config, new_tag)
+                else:
+                    logging.warning(
+                        "GitHub release can't be created, because tags hasn't been pushed")
+
+            #
+            # create new Release branch
+            #
+            logging.info("Create new release")
+            create_release_branch(config, repo, new_semver_version)
+
+            #
+            # Switch back, and bump version in primary branch
+            #
+            repo.git.checkout(active_branch)
+
+            #
             # Output
+            #
             actions_output(new_tag)
         else:
+            #
+            # Calculate new version (without any prefix)
+            #
+            new_semver_version = get_new_semver_version(
+                config, tag_last, bump_type
+            )
+
             new_tag = f"{config['tag_prefix']['candidate']}{str(new_semver_version)}"
             logging.info(f"New tag: {new_tag}")
             git_create_and_push_tag(config, repo, new_tag)

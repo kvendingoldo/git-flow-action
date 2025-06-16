@@ -540,6 +540,11 @@ def main():
             logging.info(f"New tag: {new_tag}")
             git_create_and_push_tag(config, repo, new_tag)
 
+            #
+            # Output
+            #
+            actions_output(new_tag)
+
     if active_branch.startswith("release/"):
         logging.warning(
             "It's release branch, only 'patch' version bump is available. All keywords in messages are ignored")

@@ -71,38 +71,45 @@ The action automatically determines version bumps based on commit message keywor
 
 #### Basic Release Workflow
 
+## Action example
+
 ```yaml
 name: Git Flow
 
 on:
   push:
     branches:
-      - main
-      - develop
+      - 'main'
+      - 'release/**'
 
 jobs:
   version:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
       - name: Git Flow
-        uses: your-username/git-flow-action@v1
+        id: set_version
+        uses: kvendingoldo/git-flow-action@v2.0.2
         with:
-          init_version: "1.0.0"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          enable_git_push: true
           enable_github_release: true
-          auto_release_branches: "main,develop"
+          auto_release_branches: "main"
+          tag_prefix_release: "v"
+          github_token: "${{ secrets.GITHUB_TOKEN }}"
+      
+      - name: Generated version
+        run: echo ${{ steps.set_version.outputs.version }}
 ```
 
 #### Custom Tag Prefixes
 
 ```yaml
       - name: Git Flow
-        uses: your-username/git-flow-action@v1
+        uses: kvendingoldo/git-flow-action@v2.0.2
         with:
           init_version: "1.0.0"
           tag_prefix_release: "release-"

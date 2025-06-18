@@ -1,9 +1,9 @@
-name: CI/CD pipeline
+name: "CI/CD pipeline"
 
 on:
   push:
-    tags:
-      - "**"
+    branches:
+      - "main"
   pull_request:
     branches:
       - main
@@ -13,6 +13,7 @@ env:
 
 jobs:
   unit-tests:
+    if: !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +49,7 @@ jobs:
           yml: ./codecov.yml
 
   functional-tests:
+    if: !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-24.04
     needs: unit-tests
     steps:
@@ -74,6 +76,7 @@ jobs:
 
   build:
     needs: [unit-tests, functional-tests]
+    if: !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -94,11 +97,14 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: Calculate image version
-        id: get_variables
-        run: |
-          version=$(echo $GITHUB_REF | cut -d/ -f3- | sed 's/\//-/g')
-          echo "version=${version}" >> $GITHUB_OUTPUT
+      - name: Set application version
+        id: set_version
+        uses: kvendingoldo/git-flow-action@v2.0.2
+        with:
+          enable_github_release: true
+          auto_release_branches: "main"
+          tag_prefix_release: "v"
+          github_token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Build docker image and push it
         uses: docker/build-push-action@v6
@@ -109,4 +115,5 @@ jobs:
           cache-to: type=gha,mode=max
           tags: |
             kvendingoldo/${{ env.image_name }}:latest
-            kvendingoldo/${{ env.image_name }}:${{ steps.get_variables.outputs.version }}
+            kvendingoldo/${{ env.image_name }}:${{ steps.set_version.outputs.safe_version }}
+

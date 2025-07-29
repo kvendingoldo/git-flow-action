@@ -29,6 +29,7 @@ import subprocess
 import requests
 import semver
 import git as real_git
+import datetime
 
 from git import GitCommandError
 from pathlib import Path
@@ -349,29 +350,176 @@ def create_release_branch(config, repo, new_version):
             f"Failed to create release branch {branch_name}. Error: {ex}")
 
 
-def update_changelog(config, new_tag):
+def get_commits_since_tag(repo, tag):
+    """
+    Get all commit messages since the specified tag.
+
+    Args:
+        repo: GitPython Repo object
+        tag (str): The tag to get commits since.
+
+    Returns:
+        list: List of commit messages in format "<hash> <message>"
+    """
+    if not tag:
+        return []
+
+    try:
+        # Get all commits between the tag and HEAD
+        commits = []
+        for commit in repo.iter_commits(f"{tag}..HEAD"):
+            commits.append(f"{commit.hexsha[:7]} {commit.message.strip()}")
+        return commits
+    except Exception as e:
+        logging.warning(f"Could not get commits since tag {tag}: {e}")
+        return []
+
+
+def group_commits_by_type(commits):
+    """
+    Group commits by their type (feat, fix, chore, etc.).
+
+    Args:
+        commits (list): List of commit messages in format "<hash> <message>"
+
+    Returns:
+        dict: Commits grouped by type.
+    """
+    groups = {
+        'feature': [],
+        'fix': [],
+        'chore': [],
+        'docs': [],
+        'refactor': [],
+        'perf': [],
+        'test': [],
+        'misc': []
+    }
+
+    type_mapping = {
+        'feat': 'feature',
+        'feature': 'feature',
+        'fix': 'fix',
+        'bugfix': 'fix',
+        'chore': 'chore',
+        'docs': 'docs',
+        'refactor': 'refactor',
+        'perf': 'perf',
+        'test': 'test'
+    }
+
+    for commit in commits:
+        # Format: <hash> <type>(<scope>): <message>
+        # or just <hash> <message>
+        try:
+            # Split hash from message
+            _, message = commit.split(
+                ' ', 1) if ' ' in commit else (None, commit)
+
+            # Try to extract type from conventional commit format
+            if ':' in message:
+                type_part = message.split(':', 1)[0]
+                if '(' in type_part and ')' in type_part:
+                    # Format: type(scope):
+                    commit_type = type_part.split('(')[0].strip().lower()
+                else:
+                    # Format: type:
+                    commit_type = type_part.strip().lower()
+
+                # Map to our standard types
+                commit_type = type_mapping.get(commit_type, 'misc')
+            else:
+                commit_type = 'misc'
+
+            groups[commit_type].append(commit)
+
+        except Exception as e:
+            logging.debug(f"Could not parse commit message '{commit}': {e}")
+            groups['misc'].append(commit)
+
+    return groups
+
+
+def format_changelog_entry(version, date, groups):
+    """
+    Format the changelog entry with grouped commits.
+
+    Args:
+        version (str): Version number.
+        date (str): Release date.
+        groups (dict): Commits grouped by type.
+
+    Returns:
+        str: Formatted changelog entry.
+    """
+    section_order = [
+        'feature',
+        'fix',
+        'chore',
+        'docs',
+        'refactor',
+        'perf',
+        'test',
+        'misc',
+    ]
+    section_titles = {
+        'feature': 'Features',
+        'fix': 'Bug Fixes',
+        'chore': 'Chores',
+        'docs': 'Documentation',
+        'refactor': 'Refactors',
+        'perf': 'Performance Improvements',
+        'test': 'Tests',
+        'misc': 'Miscellaneous'
+    }
+    entry_lines = [f"## {version} - {date}"]
+    for key in section_order:
+        title = section_titles[key]
+        if groups[key]:
+            entry_lines.append(f"### {title}")
+            for msg in groups[key]:
+                entry_lines.append(f"- {msg}")
+            entry_lines.append("")
+    return '\n'.join(entry_lines)
+
+
+def update_changelog(config, new_tag, repo, tag_last):
     """
     Update the changelog file with a new version entry.
 
     Args:
         config (dict): Configuration dictionary containing changelog path.
         new_tag (str): New version tag to add to changelog.
-
-    Note:
-        Creates the changelog file if it doesn't exist.
-        Adds the new version entry at the top of the file.
+        repo: GitPython Repo object.
+        tag_last (str): The previous tag to compare against.
     """
     changelog_file = Path(config["paths"]["changelog"])
 
-    changelog_notes = f"""## {new_tag}"""
+    # Get commits since last tag
+    commits = get_commits_since_tag(repo, tag_last)
 
+    if not commits:
+        logging.info("No new commits to add to changelog")
+        return
+
+    # Group commits by type
+    groups = group_commits_by_type(commits)
+
+    # Generate changelog entry
+    current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    changelog_entry = format_changelog_entry(new_tag, current_date, groups)
+
+    # Read existing changelog or create new one
     if changelog_file.exists():
         original = changelog_file.read_text()
     else:
         changelog_file.touch()
-        original = ""
+        original = "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n"
 
-    changelog_file.write_text(changelog_notes + "\n" + original)
+    # Add new entry at the top
+    changelog_file.write_text(f"{changelog_entry}\n{original}")
+
+    logging.info(f"Updated changelog with changes since {tag_last}")
 
 
 def main():
@@ -463,7 +611,8 @@ def main():
                 '[RELEASE]' in commit_message and active_branch == config["primary_branch"]):
 
             if bump_type == "patch":
-                logging.warning("It's impossible to use 'patch' bump type; 'minor' version bump will be used")
+                logging.warning(
+                    "It's impossible to use 'patch' bump type; 'minor' version bump will be used")
                 bump_type = "minor"
 
             #

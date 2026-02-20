@@ -32,6 +32,40 @@ class TestGitFlowScenarios:
         finally:
             os.chdir(old_dir)
 
+    def _verify_changelog_sections(self, changelog_content, commit_msg, main_commit_msg):
+        """Verify section ordering and commit placement within the latest changelog entry only."""
+        import re
+        # Only inspect the most recent entry (everything before the second '## ' heading)
+        parts = re.split(r'\n(?=## )', changelog_content)
+        latest_entry = parts[0] if parts else changelog_content
+
+        section_headers = [
+            '### Features', '### Bug Fixes', '### Chores', '### Documentation',
+            '### Refactors', '### Performance Improvements', '### Tests', '### Miscellaneous',
+        ]
+        last_index = -1
+        for header in section_headers:
+            idx = latest_entry.find(header)
+            if idx != -1:
+                assert idx > last_index, f"Section {header} appears out of order in CHANGELOG.md"
+                last_index = idx
+        if commit_msg.startswith('feat'):
+            assert '### Features' in latest_entry, "Features section missing in changelog for feature commit"
+            section_start = latest_entry.find('### Features')
+            section_end = min([latest_entry.find(h, section_start + 1) for h in section_headers
+                               if h != '### Features' and latest_entry.find(h, section_start + 1) != -1]
+                              or [len(latest_entry)])
+            assert main_commit_msg[:10] in latest_entry[section_start:section_end], \
+                "Feature commit not found under Features section"
+        elif commit_msg.startswith('fix'):
+            assert '### Bug Fixes' in latest_entry, "Bug Fixes section missing in changelog for fix commit"
+            section_start = latest_entry.find('### Bug Fixes')
+            section_end = min([latest_entry.find(h, section_start + 1) for h in section_headers
+                               if h != '### Bug Fixes' and latest_entry.find(h, section_start + 1) != -1]
+                              or [len(latest_entry)])
+            assert main_commit_msg[:10] in latest_entry[section_start:section_end], \
+                "Fix commit not found under Bug Fixes section"
+
     def init_repo(self):
         """Create a temporary Git repository for testing in /tmp directory"""
 
@@ -156,35 +190,7 @@ class TestGitFlowScenarios:
             assert main_commit_msg.split(',')[0].split('[')[-1].strip()[:10] in changelog_content, \
                 f"Expected commit message '{main_commit_msg}' not found in CHANGELOG.md for commit: {commit_msg}"
 
-            # Detailed changelog content verification
-            section_headers = [
-                '### Features',
-                '### Bug Fixes',
-                '### Chores',
-                '### Documentation',
-                '### Refactors',
-                '### Performance Improvements',
-                '### Tests',
-                '### Miscellaneous'
-            ]
-            last_index = -1
-            for header in section_headers:
-                idx = changelog_content.find(header)
-                if idx != -1:
-                    assert idx > last_index, f"Section {header} appears out of order in CHANGELOG.md"
-                    last_index = idx
-            # Ensure commit message is under the correct section if possible
-            if commit_msg.startswith('feat'):
-                assert '### Features' in changelog_content, "Features section missing in changelog for feature commit"
-                section_start = changelog_content.find('### Features')
-                section_end = min([changelog_content.find(h, section_start+1) for h in section_headers if h != '### Features' and changelog_content.find(h, section_start+1) != -1] or [len(changelog_content)])
-                assert main_commit_msg[:10] in changelog_content[section_start:section_end], "Feature commit not found under Features section"
-            elif commit_msg.startswith('fix'):
-                assert '### Bug Fixes' in changelog_content, "Bug Fixes section missing in changelog for fix commit"
-                section_start = changelog_content.find('### Bug Fixes')
-                section_end = min([changelog_content.find(h, section_start+1) for h in section_headers if h != '### Bug Fixes' and changelog_content.find(h, section_start+1) != -1] or [len(changelog_content)])
-                assert main_commit_msg[:10] in changelog_content[section_start:section_end], "Fix commit not found under Bug Fixes section"
-            # Add more elifs for other types as needed
+            self._verify_changelog_sections(changelog_content, commit_msg, main_commit_msg)
 
     def test_scenario3(self, monkeypatch):
         """
@@ -407,35 +413,7 @@ class TestGitFlowScenarios:
             assert main_commit_msg.split(',')[0].split('[')[-1].strip()[:10] in changelog_content, \
                 f"Expected commit message '{main_commit_msg}' not found in CHANGELOG.md for commit: {commit_msg}"
 
-            # Detailed changelog content verification
-            section_headers = [
-                '### Features',
-                '### Bug Fixes',
-                '### Chores',
-                '### Documentation',
-                '### Refactors',
-                '### Performance Improvements',
-                '### Tests',
-                '### Miscellaneous'
-            ]
-            last_index = -1
-            for header in section_headers:
-                idx = changelog_content.find(header)
-                if idx != -1:
-                    assert idx > last_index, f"Section {header} appears out of order in CHANGELOG.md"
-                    last_index = idx
-            # Ensure commit message is under the correct section if possible
-            if commit_msg.startswith('feat'):
-                assert '### Features' in changelog_content, "Features section missing in changelog for feature commit"
-                section_start = changelog_content.find('### Features')
-                section_end = min([changelog_content.find(h, section_start+1) for h in section_headers if h != '### Features' and changelog_content.find(h, section_start+1) != -1] or [len(changelog_content)])
-                assert main_commit_msg[:10] in changelog_content[section_start:section_end], "Feature commit not found under Features section"
-            elif commit_msg.startswith('fix'):
-                assert '### Bug Fixes' in changelog_content, "Bug Fixes section missing in changelog for fix commit"
-                section_start = changelog_content.find('### Bug Fixes')
-                section_end = min([changelog_content.find(h, section_start+1) for h in section_headers if h != '### Bug Fixes' and changelog_content.find(h, section_start+1) != -1] or [len(changelog_content)])
-                assert main_commit_msg[:10] in changelog_content[section_start:section_end], "Fix commit not found under Bug Fixes section"
-            # Add more elifs for other types as needed
+            self._verify_changelog_sections(changelog_content, commit_msg, main_commit_msg)
 
             # Verify release branch was created
             branches = [b.name for b in temp_repo.branches]
@@ -534,35 +512,7 @@ class TestGitFlowScenarios:
             assert main_commit_msg.split(',')[0].split('[')[-1].strip()[:10] in changelog_content, \
                 f"Expected commit message '{main_commit_msg}' not found in CHANGELOG.md for commit: {commit_msg}"
 
-            # Detailed changelog content verification
-            section_headers = [
-                '### Features',
-                '### Bug Fixes',
-                '### Chores',
-                '### Documentation',
-                '### Refactors',
-                '### Performance Improvements',
-                '### Tests',
-                '### Miscellaneous'
-            ]
-            last_index = -1
-            for header in section_headers:
-                idx = changelog_content.find(header)
-                if idx != -1:
-                    assert idx > last_index, f"Section {header} appears out of order in CHANGELOG.md"
-                    last_index = idx
-            # Ensure commit message is under the correct section if possible
-            if commit_msg.startswith('feat'):
-                assert '### Features' in changelog_content, "Features section missing in changelog for feature commit"
-                section_start = changelog_content.find('### Features')
-                section_end = min([changelog_content.find(h, section_start+1) for h in section_headers if h != '### Features' and changelog_content.find(h, section_start+1) != -1] or [len(changelog_content)])
-                assert main_commit_msg[:10] in changelog_content[section_start:section_end], "Feature commit not found under Features section"
-            elif commit_msg.startswith('fix'):
-                assert '### Bug Fixes' in changelog_content, "Bug Fixes section missing in changelog for fix commit"
-                section_start = changelog_content.find('### Bug Fixes')
-                section_end = min([changelog_content.find(h, section_start+1) for h in section_headers if h != '### Bug Fixes' and changelog_content.find(h, section_start+1) != -1] or [len(changelog_content)])
-                assert main_commit_msg[:10] in changelog_content[section_start:section_end], "Fix commit not found under Bug Fixes section"
-            # Add more elifs for other types as needed
+            self._verify_changelog_sections(changelog_content, commit_msg, main_commit_msg)
 
             # Verify we're still on the release branch
             assert temp_repo.active_branch.name == release_branch, f"Should still be on {release_branch}"
@@ -635,35 +585,7 @@ class TestGitFlowScenarios:
             assert main_commit_msg.split(',')[0].split('[')[-1].strip()[:10] in changelog_content, \
                 f"Expected commit message '{main_commit_msg}' not found in CHANGELOG.md for commit: {commit_msg}"
 
-            # Detailed changelog content verification
-            section_headers = [
-                '### Features',
-                '### Bug Fixes',
-                '### Chores',
-                '### Documentation',
-                '### Refactors',
-                '### Performance Improvements',
-                '### Tests',
-                '### Miscellaneous'
-            ]
-            last_index = -1
-            for header in section_headers:
-                idx = changelog_content.find(header)
-                if idx != -1:
-                    assert idx > last_index, f"Section {header} appears out of order in CHANGELOG.md"
-                    last_index = idx
-            # Ensure commit message is under the correct section if possible
-            if commit_msg.startswith('feat'):
-                assert '### Features' in changelog_content, "Features section missing in changelog for feature commit"
-                section_start = changelog_content.find('### Features')
-                section_end = min([changelog_content.find(h, section_start+1) for h in section_headers if h != '### Features' and changelog_content.find(h, section_start+1) != -1] or [len(changelog_content)])
-                assert main_commit_msg[:10] in changelog_content[section_start:section_end], "Feature commit not found under Features section"
-            elif commit_msg.startswith('fix'):
-                assert '### Bug Fixes' in changelog_content, "Bug Fixes section missing in changelog for fix commit"
-                section_start = changelog_content.find('### Bug Fixes')
-                section_end = min([changelog_content.find(h, section_start+1) for h in section_headers if h != '### Bug Fixes' and changelog_content.find(h, section_start+1) != -1] or [len(changelog_content)])
-                assert main_commit_msg[:10] in changelog_content[section_start:section_end], "Fix commit not found under Bug Fixes section"
-            # Add more elifs for other types as needed
+            self._verify_changelog_sections(changelog_content, commit_msg, main_commit_msg)
 
             # Verify we're still on the release branch
             assert temp_repo.active_branch.name == new_release_branch, f"Should still be on {new_release_branch}"

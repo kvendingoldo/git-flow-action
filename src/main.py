@@ -194,23 +194,30 @@ def validate_config(config):
     logging.info("Config validation passed successfully.")
 
 
-def create_github_release(config, tag):
+def create_github_release(config, tag, repo, tag_last):
     """
     Create a GitHub release for the specified tag.
 
     Args:
         config (dict): Configuration dictionary containing GitHub settings.
         tag (str): Tag name to create a release for.
+        repo: GitPython Repo object.
+        tag_last (str): The previous tag; only commits since this tag are included in the body.
 
     Raises:
         requests.exceptions.RequestException: If the GitHub API request fails.
     """
+    commits = get_commits_since_tag(repo, tag_last)
+    groups = group_commits_by_type(commits)
+    current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    body = format_changelog_entry(tag, current_date, groups)
+
     release_data = {
         "name": tag,
         "tag_name": tag,
         "draft": False,
         "prerelease": False,
-        "body": "",
+        "body": body,
         "generate_release_notes": False
     }
 
@@ -764,7 +771,7 @@ def main():
             #
             if config["features"]["enable_github_release"] == "true":
                 if config["features"]["enable_git_push"] == "true":
-                    create_github_release(config, new_tag)
+                    create_github_release(config, new_tag, repo, tag_last)
                 else:
                     logging.warning(
                         "GitHub release can't be created, because tags hasn't been pushed")

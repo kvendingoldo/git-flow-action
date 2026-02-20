@@ -210,7 +210,11 @@ def create_github_release(config, tag, repo, tag_last):
     commits = get_commits_since_tag(repo, tag_last)
     groups = group_commits_by_type(commits)
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    body = format_changelog_entry(tag, current_date, groups)
+    repo_url = None
+    gh = config.get("github", {})
+    if gh.get("repository") and gh.get("url"):
+        repo_url = f"{_web_url_from_api_url(gh['url'])}/{gh['repository']}"
+    body = format_changelog_entry(tag, current_date, groups, repo_url)
 
     release_data = {
         "name": tag,
@@ -357,6 +361,37 @@ def create_release_branch(config, repo, new_version):
             f"Failed to create release branch {branch_name}. Error: {ex}")
 
 
+_GIT_TRAILER_RE = re.compile(
+    r"^(signed-off-by|co-authored-by|reviewed-by|acked-by|cc|fixes|closes|refs):\s.*$",
+    re.IGNORECASE,
+)
+
+
+def _extract_subject(message):
+    """Return the subject line of a commit message, stripping git trailers."""
+    subject = message.splitlines()[0].strip() if message.strip() else ""
+    return _GIT_TRAILER_RE.sub("", subject).strip()
+
+
+_PR_REF_RE = re.compile(r"#(\d+)")
+
+
+def _linkify_pr_refs(text, repo_url):
+    """Replace #N references with markdown links to the pull request."""
+    return _PR_REF_RE.sub(
+        lambda m: f"[#{m.group(1)}]({repo_url}/pull/{m.group(1)})",
+        text,
+    )
+
+
+def _web_url_from_api_url(api_url):
+    """Derive the GitHub web base URL from the API URL."""
+    if "api.github.com" in api_url:
+        return "https://github.com"
+    # GitHub Enterprise: strip trailing /api/v3
+    return re.sub(r"/api/v3/?$", "", api_url.rstrip("/"))
+
+
 def get_commits_since_tag(repo, tag):
     """
     Get all commit messages since the specified tag.
@@ -372,7 +407,9 @@ def get_commits_since_tag(repo, tag):
         commits = []
         revision = f"{tag}..HEAD" if tag else "HEAD"
         for commit in repo.iter_commits(revision):
-            commits.append(f"{commit.hexsha[:7]} {commit.message.strip()}")
+            subject = _extract_subject(commit.message)
+            if subject:
+                commits.append(f"{commit.hexsha[:7]} {subject}")
         return commits
     except Exception as e:
         logging.warning(f"Could not get commits since tag {tag}: {e}")
@@ -451,7 +488,7 @@ def group_commits_by_type(commits):
     return groups
 
 
-def format_changelog_entry(version, date, groups):
+def format_changelog_entry(version, date, groups, repo_url=None):
     """
     Format the changelog entry with grouped commits.
 
@@ -459,6 +496,8 @@ def format_changelog_entry(version, date, groups):
         version (str): Version number.
         date (str): Release date.
         groups (dict): Commits grouped by type.
+        repo_url (str, optional): GitHub repository web URL used to linkify
+            PR references (#N) in commit messages.
 
     Returns:
         str: Formatted changelog entry.
@@ -489,7 +528,8 @@ def format_changelog_entry(version, date, groups):
         if groups[key]:
             entry_lines.append(f"### {title}")
             for msg in groups[key]:
-                entry_lines.append(f"- {msg}")
+                line = _linkify_pr_refs(msg, repo_url) if repo_url else msg
+                entry_lines.append(f"- {line}")
             entry_lines.append("")
     return '\n'.join(entry_lines)
 
@@ -517,7 +557,11 @@ def update_changelog(config, new_tag, repo, tag_last):
 
     # Generate changelog entry
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    changelog_entry = format_changelog_entry(new_tag, current_date, groups)
+    repo_url = None
+    gh = config.get("github", {})
+    if gh.get("repository") and gh.get("url"):
+        repo_url = f"{_web_url_from_api_url(gh['url'])}/{gh['repository']}"
+    changelog_entry = format_changelog_entry(new_tag, current_date, groups, repo_url)
 
     # Read existing changelog or create new one
     if changelog_file.exists():
@@ -550,7 +594,7 @@ def _get_tag_effective_date(tag):
     return tag.commit.committed_date
 
 
-def generate_changelog_between_tags(repo) -> str:
+def generate_changelog_between_tags(repo, repo_url=None) -> str:
     """
     Generate a changelog entry for commits between the two most recent tags.
 
@@ -627,13 +671,13 @@ def generate_changelog_between_tags(repo) -> str:
 
     # Format commits in the "<sha7> <message>" form that group_commits_by_type expects.
     formatted_commits = [
-        f"{commit.hexsha[:7]} {commit.message.strip()}"
+        f"{commit.hexsha[:7]} {_extract_subject(commit.message)}"
         for commit in raw_commits
     ]
 
     groups = group_commits_by_type(formatted_commits)
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    return format_changelog_entry(latest_tag.name, current_date, groups)
+    return format_changelog_entry(latest_tag.name, current_date, groups, repo_url)
 
 
 def main():

@@ -493,6 +493,62 @@ def test_generate_changelog_between_tags_merge_commits_included():
 # Regression tests: update_changelog must only include commits since tag_last
 # ---------------------------------------------------------------------------
 
+def test_get_commits_since_tag_uses_subject_line_only(tmp_path):
+    """Only the first line (subject) of a commit message must appear in the changelog."""
+    multiline_message = (
+        "feat: add new thing\n\n"
+        "This is the body of the commit that should NOT appear in the changelog.\n"
+        "It can span multiple lines.\n"
+    )
+
+    class MultilineRepo:
+        def iter_commits(self, rev):
+            return [type("C", (), {"hexsha": "abc1234" + "x" * 33, "message": multiline_message})()]
+
+    config = {"paths": {"changelog": str(tmp_path / "CHANGELOG.md")}}
+    from src.main import update_changelog
+    update_changelog(config, "v1.0.0", MultilineRepo(), None)
+
+    content = (tmp_path / "CHANGELOG.md").read_text()
+    assert "add new thing" in content
+    assert "This is the body" not in content
+    assert "It can span multiple lines" not in content
+
+
+def test_extract_subject_strips_trailer_only_messages():
+    """_extract_subject must return empty string when the subject IS a trailer."""
+    from src.main import _extract_subject
+
+    assert _extract_subject("Signed-off-by: bot <bot@example.com>") == ""
+    assert _extract_subject("Co-authored-by: user <user@example.com>") == ""
+    assert _extract_subject("Reviewed-by: reviewer <r@example.com>") == ""
+    assert _extract_subject("Acked-by: someone <someone@example.com>") == ""
+    # Normal subjects must pass through unchanged
+    assert _extract_subject("feat: add new thing") == "feat: add new thing"
+    assert _extract_subject("fix: patch") == "fix: patch"
+
+
+def test_get_commits_skips_trailer_only_commits(tmp_path):
+    """Commits whose entire message is a git trailer must be excluded from the changelog."""
+    from src.main import update_changelog
+
+    class MixedRepo:
+        def iter_commits(self, rev):
+            return [
+                type("C", (), {"hexsha": "aaa1111" + "x" * 33, "message": "feat: real feature"})(),
+                type("C", (), {"hexsha": "bbb2222" + "x" * 33, "message": "Signed-off-by: bot <bot@example.com>"})(),
+                type("C", (), {"hexsha": "ccc3333" + "x" * 33, "message": "Co-authored-by: user <user@example.com>"})(),
+            ]
+
+    changelog = tmp_path / "CHANGELOG.md"
+    update_changelog({"paths": {"changelog": str(changelog)}}, "v1.0.0", MixedRepo(), None)
+    content = changelog.read_text()
+
+    assert "real feature" in content
+    assert "Signed-off-by" not in content
+    assert "Co-authored-by" not in content
+
+
 def test_update_changelog_passes_tag_last_to_iter_commits(tmp_path):
     """update_changelog must pass tag_last as the revision boundary, not None."""
     revisions_seen = []
@@ -541,6 +597,47 @@ def test_update_changelog_excludes_commits_before_tag_last(tmp_path):
     assert "old feature before tag" not in content, (
         "Commits before tag_last leaked into the changelog entry"
     )
+
+
+def test_pr_refs_are_linkified_when_repo_url_provided(tmp_path):
+    """#N references in commit messages become markdown links when repo_url is given."""
+    from src.main import update_changelog
+
+    class PRRepo:
+        def iter_commits(self, rev):
+            return [
+                type("C", (), {"hexsha": "aaa1111" + "x" * 33, "message": "feat: add thing (#42)"})(),
+                type("C", (), {"hexsha": "bbb2222" + "x" * 33, "message": "fix: patch (#7)"})(),
+            ]
+
+    config = {
+        "paths": {"changelog": str(tmp_path / "CHANGELOG.md")},
+        "github": {"repository": "owner/repo", "url": "https://api.github.com"},
+    }
+    update_changelog(config, "v1.0.0", PRRepo(), None)
+
+    content = (tmp_path / "CHANGELOG.md").read_text()
+    assert "[#42](https://github.com/owner/repo/pull/42)" in content
+    assert "[#7](https://github.com/owner/repo/pull/7)" in content
+
+
+def test_pr_refs_not_linkified_without_repo(tmp_path):
+    """#N references remain plain text when no repository is configured."""
+    from src.main import update_changelog
+
+    class PRRepo:
+        def iter_commits(self, rev):
+            return [type("C", (), {"hexsha": "aaa1111" + "x" * 33, "message": "feat: add thing (#42)"})()]
+
+    config = {
+        "paths": {"changelog": str(tmp_path / "CHANGELOG.md")},
+        "github": {"repository": None, "url": "https://api.github.com"},
+    }
+    update_changelog(config, "v1.0.0", PRRepo(), None)
+
+    content = (tmp_path / "CHANGELOG.md").read_text()
+    assert "(#42)" in content
+    assert "github.com" not in content
 
 
 def test_generate_changelog_between_tags_output_format():

@@ -1,3 +1,7 @@
+## v2.16.0 - 2026-02-20
+### Miscellaneous
+- fd7097c [RELEASE] feat: update git-flow
+
 ## v2.15.0 - 2026-02-20
 ### Miscellaneous
 - ebeccfb [RELEASE] feat: re-work changelog format

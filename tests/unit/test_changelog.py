@@ -253,19 +253,23 @@ def test_update_changelog_with_special_characters(temp_changelog):
 
 
 def test_group_commits_by_type_feature():
-    """Test grouping feature commits."""
+    """Test grouping feature commits, including special characters."""
     commits = [
         "abc123 feat(auth): add login functionality",
         "def456 feature(ui): enhance button styles",
-        "789012 feat: add dark mode toggle"
+        "789012 feat: add dark mode toggle",
+        "xyz987 feat(api+meta): support v1.0.0+meta",
+        "uvw654 feat: handle special chars in version v1.2.3-beta"
     ]
     
     result = group_commits_by_type(commits)
     
-    assert len(result['feature']) == 3
+    assert len(result['feature']) == 5
     assert "feat(auth): add login functionality" in result['feature'][0]
     assert "feature(ui): enhance button styles" in result['feature'][1]
     assert "feat: add dark mode toggle" in result['feature'][2]
+    assert "feat(api+meta): support v1.0.0+meta" in result['feature'][3]
+    assert "feat: handle special chars in version v1.2.3-beta" in result['feature'][4]
 
 
 def test_group_commits_by_type_fix():

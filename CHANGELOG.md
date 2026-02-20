@@ -1,3 +1,7 @@
+## v2.15.0 - 2026-02-20
+### Miscellaneous
+- ebeccfb [RELEASE] feat: re-work changelog format
+
 ## v2.14.0 - 2026-02-20
 ### Miscellaneous
 - 6b896ce [RELEASE] chore: trigger release

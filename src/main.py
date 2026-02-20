@@ -499,9 +499,7 @@ def update_changelog(config, new_tag, repo, tag_last):
     """
     changelog_file = Path(config["paths"]["changelog"])
 
-    # Get all commits reachable from HEAD so every new entry contains the full
-    # accumulated history, keeping section ordering correct across entries.
-    commits = get_commits_since_tag(repo, None)
+    commits = get_commits_since_tag(repo, tag_last)
 
     if not commits:
         logging.info("No commits to add to changelog")

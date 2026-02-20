@@ -489,6 +489,60 @@ def test_generate_changelog_between_tags_merge_commits_included():
     assert "Merge pull request" in result
 
 
+# ---------------------------------------------------------------------------
+# Regression tests: update_changelog must only include commits since tag_last
+# ---------------------------------------------------------------------------
+
+def test_update_changelog_passes_tag_last_to_iter_commits(tmp_path):
+    """update_changelog must pass tag_last as the revision boundary, not None."""
+    revisions_seen = []
+
+    class TrackingRepo:
+        def iter_commits(self, rev):
+            revisions_seen.append(rev)
+            return []
+
+    config = {"paths": {"changelog": str(tmp_path / "CHANGELOG.md")}}
+    from src.main import update_changelog
+    update_changelog(config, "v1.1.0", TrackingRepo(), "v1.0.0")
+
+    assert revisions_seen == ["v1.0.0..HEAD"], (
+        f"Expected iter_commits called with 'v1.0.0..HEAD', got {revisions_seen}"
+    )
+
+
+def test_update_changelog_excludes_commits_before_tag_last(tmp_path):
+    """Commits before tag_last must not appear in the new changelog entry."""
+    ALL_COMMITS = [
+        ("aaa1111", "feat: new feature after tag"),
+        ("bbb2222", "fix: patch after tag"),
+    ]
+    OLD_COMMITS = [
+        ("ccc3333", "feat: old feature before tag"),
+    ]
+
+    class SelectiveRepo:
+        def iter_commits(self, rev):
+            # Simulate correct git boundary: only return new commits when a
+            # tag boundary is given; return everything when None / "HEAD".
+            if rev == "v1.0.0..HEAD":
+                return [type("C", (), {"hexsha": h, "message": m})() for h, m in ALL_COMMITS]
+            # If the bug regresses (rev == "HEAD"), return old + new commits.
+            return [type("C", (), {"hexsha": h, "message": m})() for h, m in OLD_COMMITS + ALL_COMMITS]
+
+    changelog_file = tmp_path / "CHANGELOG.md"
+    config = {"paths": {"changelog": str(changelog_file)}}
+    from src.main import update_changelog
+    update_changelog(config, "v1.1.0", SelectiveRepo(), "v1.0.0")
+
+    content = changelog_file.read_text()
+    assert "new feature after tag" in content
+    assert "patch after tag" in content
+    assert "old feature before tag" not in content, (
+        "Commits before tag_last leaked into the changelog entry"
+    )
+
+
 def test_generate_changelog_between_tags_output_format():
     """Output has version header and sections in correct order."""
     import re

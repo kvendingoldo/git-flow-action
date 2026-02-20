@@ -2,7 +2,7 @@
 
 import pytest
 from pathlib import Path
-from src.main import update_changelog, group_commits_by_type
+from src.main import update_changelog, group_commits_by_type, generate_changelog_between_tags
 
 
 @pytest.fixture
@@ -345,3 +345,166 @@ def test_group_commits_by_type_mixed():
     assert "chore: update deps" in result['chore'][0]
     assert "docs: update API docs" in result['docs'][0]
     assert "feat(ui): add dark mode" in result['feature'][1]
+
+
+# ---------------------------------------------------------------------------
+# Helpers shared by generate_changelog_between_tags tests
+# ---------------------------------------------------------------------------
+
+class _FakeTagCommit:
+    def __init__(self, hexsha, committed_date, message="chore: placeholder"):
+        self.hexsha = hexsha
+        self.committed_date = committed_date
+        self.message = message
+
+
+class _FakeTagRef:
+    """Lightweight tag stand-in."""
+    def __init__(self, name, hexsha, committed_date, message="chore: placeholder"):
+        self.name = name
+        self.tag = None  # lightweight
+        self.commit = _FakeTagCommit(hexsha, committed_date, message)
+
+
+class _FakeAnnotatedTagRef(_FakeTagRef):
+    """Annotated tag stand-in."""
+    class _Ann:
+        def __init__(self, tagged_date):
+            self.tagged_date = tagged_date
+
+    def __init__(self, name, hexsha, committed_date, tagged_date, message="chore: placeholder"):
+        super().__init__(name, hexsha, committed_date, message)
+        self.tag = self._Ann(tagged_date)
+
+
+class _FakeCommit:
+    def __init__(self, hexsha, message):
+        self.hexsha = hexsha
+        self.message = message
+
+
+def _make_repo(tag_refs, commits_by_revision):
+    class _FakeGit:
+        def __init__(self, names):
+            self._names = names
+        def tag(self, *args):
+            if '--merged' in args:
+                return '\n'.join(self._names)
+            return ''
+
+    class _FakeRepo:
+        def __init__(self):
+            self.tags = tag_refs
+            self.git = _FakeGit([t.name for t in tag_refs])
+        def iter_commits(self, revision):
+            if revision not in commits_by_revision:
+                raise Exception(f"Unknown revision: {revision}")
+            return commits_by_revision[revision]
+
+    return _FakeRepo()
+
+
+# ---------------------------------------------------------------------------
+# Tests for generate_changelog_between_tags
+# ---------------------------------------------------------------------------
+
+def test_generate_changelog_between_tags_no_tags():
+    repo = _make_repo([], {})
+    result = generate_changelog_between_tags(repo)
+    assert "No tags" in result
+
+
+def test_generate_changelog_between_tags_single_tag():
+    tag = _FakeTagRef("v1.0.0", "a" * 40, 1000)
+    commits = [
+        _FakeCommit("abc1234" + "x" * 33, "feat: initial feature"),
+        _FakeCommit("def5678" + "x" * 33, "fix: early fix"),
+    ]
+    repo = _make_repo([tag], {"v1.0.0": commits})
+    result = generate_changelog_between_tags(repo)
+    assert "## v1.0.0 -" in result
+    assert "### Features" in result
+    assert "initial feature" in result
+    assert "### Bug Fixes" in result
+    assert "early fix" in result
+
+
+def test_generate_changelog_between_tags_two_tags():
+    tag_old = _FakeTagRef("v1.0.0", "a" * 40, 1000)
+    tag_new = _FakeTagRef("v1.1.0", "b" * 40, 2000)
+    commits = [
+        _FakeCommit("c" * 40, "feat: new thing"),
+        _FakeCommit("d" * 40, "fix: patch issue"),
+    ]
+    repo = _make_repo([tag_old, tag_new], {"v1.0.0..v1.1.0": commits})
+    result = generate_changelog_between_tags(repo)
+    assert "## v1.1.0 -" in result
+    assert "new thing" in result
+    assert "patch issue" in result
+
+
+def test_generate_changelog_between_tags_sorts_by_date_not_name():
+    """v1.10.0 is newest by date even though v1.9.0 > v1.10.0 lexicographically."""
+    tag_v1_10 = _FakeTagRef("v1.10.0", "a" * 40, 3000)
+    tag_v1_9  = _FakeTagRef("v1.9.0",  "b" * 40, 2000)
+    tag_v1_0  = _FakeTagRef("v1.0.0",  "c" * 40, 1000)
+    commits = [_FakeCommit("e" * 40, "feat: ten")]
+    repo = _make_repo(
+        [tag_v1_10, tag_v1_9, tag_v1_0],
+        {"v1.9.0..v1.10.0": commits},
+    )
+    result = generate_changelog_between_tags(repo)
+    assert "## v1.10.0 -" in result
+    assert "ten" in result
+
+
+def test_generate_changelog_between_tags_annotated_uses_tagged_date():
+    """Annotated tags are sorted by tagged_date, not commit committed_date."""
+    tag_old = _FakeAnnotatedTagRef("v2.0.0", "a" * 40, committed_date=5000, tagged_date=1000)
+    tag_new = _FakeAnnotatedTagRef("v2.1.0", "b" * 40, committed_date=4000, tagged_date=2000)
+    commits = [_FakeCommit("c" * 40, "chore: after tag")]
+    repo = _make_repo([tag_old, tag_new], {"v2.0.0..v2.1.0": commits})
+    result = generate_changelog_between_tags(repo)
+    assert "## v2.1.0 -" in result
+
+
+def test_generate_changelog_between_tags_empty_range():
+    """Same-commit tags produce an informative empty-range message."""
+    tag1 = _FakeTagRef("v1.0.0", "a" * 40, 1000)
+    tag2 = _FakeTagRef("v1.0.1", "a" * 40, 2000)
+    repo = _make_repo([tag1, tag2], {"v1.0.0..v1.0.1": []})
+    result = generate_changelog_between_tags(repo)
+    assert "No commits" in result
+
+
+def test_generate_changelog_between_tags_merge_commits_included():
+    tag_old = _FakeTagRef("v1.0.0", "a" * 40, 1000)
+    tag_new = _FakeTagRef("v1.1.0", "b" * 40, 2000)
+    commits = [
+        _FakeCommit("f" * 40, "Merge pull request #42 from org/feature-x"),
+        _FakeCommit("c" * 40, "feat: actual feature"),
+    ]
+    repo = _make_repo([tag_old, tag_new], {"v1.0.0..v1.1.0": commits})
+    result = generate_changelog_between_tags(repo)
+    assert "Merge pull request" in result
+
+
+def test_generate_changelog_between_tags_output_format():
+    """Output has version header and sections in correct order."""
+    import re
+    tag_old = _FakeTagRef("v3.0.0", "a" * 40, 1000)
+    tag_new = _FakeTagRef("v3.1.0", "b" * 40, 2000)
+    commits = [
+        _FakeCommit("1234567" + "x" * 33, "feat: add new thing"),
+        _FakeCommit("abcdefg" + "x" * 33, "fix: patch issue"),
+        _FakeCommit("fedcbag" + "x" * 33, "chore: update deps"),
+    ]
+    repo = _make_repo([tag_old, tag_new], {"v3.0.0..v3.1.0": commits})
+    result = generate_changelog_between_tags(repo)
+    assert re.match(r"^## v3\.1\.0 - \d{4}-\d{2}-\d{2}", result)
+    sections = [
+        "### Features", "### Bug Fixes", "### Chores", "### Documentation",
+        "### Refactors", "### Performance Improvements", "### Tests", "### Miscellaneous",
+    ]
+    indices = [result.find(s) for s in sections if result.find(s) != -1]
+    assert indices == sorted(indices), "Sections out of order"
